@@ -127,7 +127,6 @@ namespace StarterAssets
         public override void OnNetworkSpawn()
         {
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            _mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponentInChildren<Camera>();
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
@@ -143,10 +142,35 @@ namespace StarterAssets
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
 
-            if (!IsOwner)
+            if (IsOwner)
             {
-                _mainCamera.enabled = false;
-                _mainCamera.GetComponentInChildren<CinemachineBrain>().enabled = false;
+                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponentInChildren<Camera>();
+                
+                // Set up Cinemachine camera to follow this player
+                var virtualCamera = GameObject.FindFirstObjectByType<CinemachineCamera>();
+                if (virtualCamera != null)
+                {
+                    virtualCamera.Follow = CinemachineCameraTarget.transform;
+                    virtualCamera.LookAt = CinemachineCameraTarget.transform;
+                }
+                
+                // Lock and hide cursor for local player
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                
+                // Enable input for owner player
+                if (_input != null)
+                    _input.enabled = true;
+                if (_playerInput != null)
+                    _playerInput.enabled = true;
+            }
+            else
+            {
+                // Disable input components for non-owner players
+                if (_input != null)
+                    _input.enabled = false;
+                if (_playerInput != null)
+                    _playerInput.enabled = false;
             }
             
         }
@@ -170,6 +194,9 @@ namespace StarterAssets
 
         private void LateUpdate()
         {
+            if (!IsOwner)
+                return;
+                
             CameraRotation();
         }
 
@@ -199,6 +226,10 @@ namespace StarterAssets
 
         private void CameraRotation()
         {
+            // Only process camera rotation for the owner
+            if (!IsOwner || _mainCamera == null)
+                return;
+                
             // if there is an input and camera position is not fixed
             if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
             {
