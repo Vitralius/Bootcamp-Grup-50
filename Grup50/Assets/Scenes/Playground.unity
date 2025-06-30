@@ -334,7 +334,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 102140935}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 917348080}
+        m_TargetAssemblyTypeName: ButtonAction, Assembly-CSharp
+        m_MethodName: SumbitNewPosition
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &102140935
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1985,7 +1997,7 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 2113840505}
-    PlayerPrefab: {fileID: 2324533515276568520, guid: 60046ccb5c933e841aee99966e46f22b, type: 3}
+    PlayerPrefab: {fileID: 4416926081852918481, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: d7e65418b1c40b942abdc417b41b5877, type: 2}

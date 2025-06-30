@@ -1,4 +1,6 @@
-﻿ using UnityEngine;
+﻿ using Unity.Cinemachine;
+ using Unity.Netcode;
+ using UnityEngine;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -12,7 +14,7 @@ namespace StarterAssets
 #if ENABLE_INPUT_SYSTEM 
     [RequireComponent(typeof(PlayerInput))]
 #endif
-    public class ThirdPersonController : MonoBehaviour
+    public class ThirdPersonController : NetworkBehaviour
     {
         [Header("Player")]
         [Tooltip("Move speed of the character in m/s")]
@@ -104,7 +106,7 @@ namespace StarterAssets
         private Animator _animator;
         private CharacterController _controller;
         private StarterAssetsInputs _input;
-        private GameObject _mainCamera;
+        private Camera _mainCamera;
 
         private const float _threshold = 0.01f;
 
@@ -122,20 +124,10 @@ namespace StarterAssets
             }
         }
 
-
-        private void Awake()
-        {
-            // get a reference to our main camera
-            if (_mainCamera == null)
-            {
-                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-            }
-        }
-
-        private void Start()
+        public override void OnNetworkSpawn()
         {
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            
+            _mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponentInChildren<Camera>();
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
@@ -150,10 +142,25 @@ namespace StarterAssets
             // reset our timeouts on start
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
+
+            if (!IsOwner)
+            {
+                _mainCamera.enabled = false;
+                _mainCamera.GetComponentInChildren<CinemachineBrain>().enabled = false;
+            }
+            
+        }
+
+        private void Awake()
+        {
+
         }
 
         private void Update()
         {
+            if (!IsOwner)
+                return;
+            
             _hasAnimator = TryGetComponent(out _animator);
 
             JumpAndGravity();
