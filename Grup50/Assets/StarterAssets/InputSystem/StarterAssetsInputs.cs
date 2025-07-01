@@ -12,6 +12,7 @@ namespace StarterAssets
 		public Vector2 look;
 		public bool jump;
 		public bool sprint;
+		public bool menu;
 
 		[Header("Movement Settings")]
 		public bool analogMovement;
@@ -43,6 +44,11 @@ namespace StarterAssets
 		{
 			SprintInput(value.isPressed);
 		}
+
+		public void OnMenu(InputValue value)
+		{
+			MenuInput(value.isPressed);
+		}
 #endif
 
 
@@ -66,6 +72,17 @@ namespace StarterAssets
 			sprint = newSprintState;
 		}
 
+		public void MenuInput(bool newMenuState)
+		{
+			menu = newMenuState;
+		}
+
+		public void ToggleCursor()
+		{
+			cursorLocked = !cursorLocked;
+			SetCursorState(cursorLocked);
+		}
+
 		private void OnApplicationFocus(bool hasFocus)
 		{
 			SetCursorState(cursorLocked);
@@ -74,6 +91,7 @@ namespace StarterAssets
 		private void SetCursorState(bool newState)
 		{
 			Cursor.lockState = newState ? CursorLockMode.Locked : CursorLockMode.None;
+			Cursor.visible = !newState;
 		}
 	}
 	

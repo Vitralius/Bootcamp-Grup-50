@@ -187,6 +187,13 @@ namespace StarterAssets
             
             _hasAnimator = TryGetComponent(out _animator);
 
+            // Handle menu toggle
+            if (_input.menu)
+            {
+                _input.menu = false; // Reset the input
+                _input.ToggleCursor();
+            }
+
             JumpAndGravity();
             GroundedCheck();
             Move();
