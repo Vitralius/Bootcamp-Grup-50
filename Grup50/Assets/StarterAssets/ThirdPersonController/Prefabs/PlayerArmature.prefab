@@ -1199,7 +1199,13 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   canPush: 1
-  strength: 1.1
+  strength: 3
+  pushCooldown: 0.033
+  maxPushForce: 150
+  clientForceMultiplier: 1
+  searchRadius: 0.3
+  maxCollidersToCheck: 5
+  cleanupInterval: 10
   showDebugArrows: 1
   debugArrowDuration: 3
 --- !u!114 &135756642000475821

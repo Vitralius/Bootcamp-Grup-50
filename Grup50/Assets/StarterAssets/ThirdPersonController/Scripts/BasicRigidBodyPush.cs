@@ -5,13 +5,42 @@ using System.Collections;
 
 public class BasicRigidBodyPush : NetworkBehaviour
 {
+	[Header("Layer Settings")]
+	[Tooltip("Layers that can be pushed (ground/walls should NOT be included)")]
 	public LayerMask pushLayers;
 	public bool canPush;
 	[Range(0.5f, 5f)] public float strength = 1.1f;
 	
+	[Header("Rate Limiting")]
+	[Tooltip("Minimum time between push attempts on the same object")]
+	public float pushCooldown = 0.2f;
+	[Tooltip("Maximum force that can be applied")]
+	public float maxPushForce = 10f;
+	[Tooltip("Reduce client push strength")]
+	[Range(0.1f, 1f)] public float clientForceMultiplier = 0.7f;
+	[Tooltip("Radius for finding nearby objects (smaller = better performance)")]
+	public float searchRadius = 0.3f;
+	
+	[Header("Performance")]
+	[Tooltip("Maximum colliders to check in ServerRpc (0 = no limit)")]
+	public int maxCollidersToCheck = 5;
+	[Tooltip("Clean old push times every N seconds")]
+	public float cleanupInterval = 10f;
+	
 	[Header("Debug Visualization")]
 	public bool showDebugArrows = true;
 	public float debugArrowDuration = 3f;
+	
+	// Rate limiting tracking
+	private Dictionary<int, float> lastPushTimes = new Dictionary<int, float>();
+	
+	// Per-frame collision tracking (prevents multiple hits per frame)
+	private HashSet<int> pushedThisFrame = new HashSet<int>();
+	private int lastFrameCount = -1;
+	
+	// Performance optimization - cached array for Physics.OverlapSphere
+	private Collider[] nearbyCollidersCache = new Collider[10];
+	private float lastCleanupTime = 0f;
 	
 	// Static list to store debug info for OnGUI
 	private static List<DebugForceInfo> debugForces = new List<DebugForceInfo>();
@@ -31,6 +60,46 @@ public class BasicRigidBodyPush : NetworkBehaviour
 		// Only owner can initiate pushes
 		if (!IsOwner || !canPush) 
 			return;
+		
+		// Early layer filtering - only process collisions with pushable layers
+		// This prevents ground/wall collision processing while maintaining physics
+		var hitLayerMask = 1 << hit.collider.gameObject.layer;
+		if ((hitLayerMask & pushLayers.value) == 0) 
+		{
+			return; // Not a pushable layer, skip entirely
+		}
+		
+		int objectId = hit.collider.GetInstanceID();
+		
+		// Clear frame tracking if we're in a new frame
+		if (Time.frameCount != lastFrameCount)
+		{
+			pushedThisFrame.Clear();
+			lastFrameCount = Time.frameCount;
+		}
+		
+		// Prevent multiple pushes per frame on same object (fixes CharacterController sub-movements)
+		if (pushedThisFrame.Contains(objectId))
+		{
+			return; // Already pushed this object this frame
+		}
+		
+		// Rate limiting: Check if we recently pushed this object
+		if (lastPushTimes.ContainsKey(objectId) && Time.time - lastPushTimes[objectId] < pushCooldown)
+		{
+			return; // Too soon, skip this push
+		}
+		
+		// Mark as pushed this frame and update last push time
+		pushedThisFrame.Add(objectId);
+		lastPushTimes[objectId] = Time.time;
+		
+		// Periodic cleanup of old push times to prevent memory growth
+		if (Time.time - lastCleanupTime > cleanupInterval)
+		{
+			CleanupOldPushTimes();
+			lastCleanupTime = Time.time;
+		}
 		
 		if (IsServer)
 		{
@@ -67,13 +136,22 @@ public class BasicRigidBodyPush : NetworkBehaviour
 
 		// Apply the push and take strength into account (server-authoritative)
 		Vector3 forceVector = pushDir * strength;
+		
+		// Clamp force to maximum for consistency
+		if (forceVector.magnitude > maxPushForce)
+		{
+			forceVector = forceVector.normalized * maxPushForce;
+		}
+		
 		body.AddForce(forceVector, ForceMode.Impulse);
 		
 		// Add debug visualization (red for host pushes)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 		if (showDebugArrows)
 		{
 			AddDebugForce(hit.collider.transform.position, forceVector, Color.red, false);
 		}
+#endif
 	}
 	
 	[ServerRpc]
@@ -82,11 +160,15 @@ public class BasicRigidBodyPush : NetworkBehaviour
 		// Server validates and applies push from client request
 		Debug.Log($"Server processing client push request at {hitPosition}");
 		
-		// Find the closest rigidbody near the hit position
-		Collider[] nearbyColliders = Physics.OverlapSphere(hitPosition, 0.5f);
+		// Find the closest rigidbody near the hit position (optimized search with cached array)
+		int colliderCount = Physics.OverlapSphereNonAlloc(hitPosition, searchRadius, nearbyCollidersCache, pushLayers);
 		
-		foreach (var collider in nearbyColliders)
+		// Limit the number of colliders we check for performance
+		int maxCheck = maxCollidersToCheck > 0 ? Mathf.Min(colliderCount, maxCollidersToCheck) : colliderCount;
+		
+		for (int i = 0; i < maxCheck; i++)
 		{
+			var collider = nearbyCollidersCache[i];
 			Rigidbody body = collider.attachedRigidbody;
 			if (body == null || body.isKinematic) continue;
 			
@@ -97,23 +179,57 @@ public class BasicRigidBodyPush : NetworkBehaviour
 			// Don't push objects below us
 			if (moveDirection.y < -0.3f) continue;
 			
-			// Calculate and apply push
+			// Calculate and apply push with client force reduction
 			Vector3 pushDir = new Vector3(moveDirection.x, 0.0f, moveDirection.z);
-			Vector3 forceVector = pushDir * strength;
+			Vector3 forceVector = pushDir * strength * clientForceMultiplier; // Reduce client force
+			
+			// Clamp force to maximum
+			if (forceVector.magnitude > maxPushForce)
+			{
+				forceVector = forceVector.normalized * maxPushForce;
+			}
+			
 			body.AddForce(forceVector, ForceMode.Impulse);
 			
 			// Add debug visualization (green for client-initiated pushes)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 			if (showDebugArrows)
 			{
 				AddDebugForce(collider.transform.position, forceVector, Color.green, true);
 			}
+#endif
 			
 			Debug.Log($"Server applied client-requested push: {forceVector} to {collider.name}");
 			break; // Only push the first valid object found
 		}
 	}
 	
+	private void CleanupOldPushTimes()
+	{
+		// Remove push times older than twice the cooldown period to free memory
+		float cleanupThreshold = Time.time - (pushCooldown * 2f);
+		var keysToRemove = new List<int>();
+		
+		foreach (var kvp in lastPushTimes)
+		{
+			if (kvp.Value < cleanupThreshold)
+			{
+				keysToRemove.Add(kvp.Key);
+			}
+		}
+		
+		foreach (int key in keysToRemove)
+		{
+			lastPushTimes.Remove(key);
+		}
+		
+		if (keysToRemove.Count > 0)
+		{
+			Debug.Log($"Cleaned up {keysToRemove.Count} old push time entries");
+		}
+	}
 	
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 	private void AddDebugForce(Vector3 position, Vector3 force, Color color, bool isClientInitiated)
 	{
 		DebugForceInfo debugInfo = new DebugForceInfo
@@ -131,7 +247,9 @@ public class BasicRigidBodyPush : NetworkBehaviour
 		// Clean up old debug forces
 		debugForces.RemoveAll(info => Time.time - info.timestamp > debugArrowDuration);
 	}
+#endif
 	
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 	private void Update()
 	{
 		if (showDebugArrows)
@@ -155,7 +273,9 @@ public class BasicRigidBodyPush : NetworkBehaviour
 			}
 		}
 	}
+#endif
 	
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 	private void DrawDebugArrow(Vector3 position, Vector3 direction, float length, Color color)
 	{
 		Vector3 endPos = position + direction * length;
@@ -178,7 +298,9 @@ public class BasicRigidBodyPush : NetworkBehaviour
 		Debug.DrawLine(position - new Vector3(crossSize.x, -crossSize.y, crossSize.z), 
 		              position + new Vector3(crossSize.x, -crossSize.y, crossSize.z), color, Time.deltaTime);
 	}
+#endif
 	
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 	private void OnGUI()
 	{
 		if (!showDebugArrows || debugForces.Count == 0) return;
@@ -225,4 +347,5 @@ public class BasicRigidBodyPush : NetworkBehaviour
 		// Reset GUI color
 		GUI.color = Color.white;
 	}
+#endif
 }
