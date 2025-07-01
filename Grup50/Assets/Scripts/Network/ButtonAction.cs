@@ -12,6 +12,7 @@ public class ButtonAction : MonoBehaviour
     [SerializeField] private Button createSessionButton;
     [SerializeField] private Button joinSessionButton;
     [SerializeField] private Button leaveSessionButton;
+    [SerializeField] private Button copyJoinCodeButton;
     
     private SessionManager sessionManager;
     
@@ -71,6 +72,31 @@ public class ButtonAction : MonoBehaviour
         {
             GUIUtility.systemCopyBuffer = joinCodeDisplay.text;
             UpdateUIState("Join code copied to clipboard!");
+            
+            // Brief visual feedback
+            if (copyJoinCodeButton != null)
+            {
+                StartCoroutine(CopyButtonFeedback());
+            }
+        }
+        else
+        {
+            UpdateUIState("No join code to copy!");
+        }
+    }
+    
+    private System.Collections.IEnumerator CopyButtonFeedback()
+    {
+        // Store original text
+        TMP_Text buttonText = copyJoinCodeButton.GetComponentInChildren<TMP_Text>();
+        string originalText = buttonText?.text ?? "Copy";
+        
+        // Change button text briefly
+        if (buttonText != null)
+        {
+            buttonText.text = "Copied!";
+            yield return new WaitForSeconds(1.5f);
+            buttonText.text = originalText;
         }
     }
     
@@ -111,5 +137,12 @@ public class ButtonAction : MonoBehaviour
             joinSessionButton.interactable = join;
         if (leaveSessionButton != null)
             leaveSessionButton.interactable = leave;
+        
+        // Copy button is only active when there's a join code to copy
+        if (copyJoinCodeButton != null)
+        {
+            bool hasJoinCode = joinCodeDisplay != null && !string.IsNullOrEmpty(joinCodeDisplay.text);
+            copyJoinCodeButton.interactable = hasJoinCode;
+        }
     }
 }
