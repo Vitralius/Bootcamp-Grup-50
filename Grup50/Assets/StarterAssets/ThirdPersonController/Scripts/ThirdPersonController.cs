@@ -30,6 +30,32 @@ namespace StarterAssets
         [Tooltip("Acceleration and deceleration")]
         public float SpeedChangeRate = 10.0f;
 
+        [Space(10)]
+        [Header("Crouching")]
+        [Tooltip("Enable hold-to-crouch (true) or toggle-to-crouch (false)")]
+        public bool HoldToCrouch = true;
+        
+        [Tooltip("Speed multiplier when crouching")]
+        [Range(0.1f, 1.0f)]
+        public float CrouchSpeedMultiplier = 0.5f;
+
+        [Space(10)]
+        [Header("Double Jump")]
+        [Tooltip("Enable double jump ability")]
+        public bool EnableDoubleJump = false;
+        
+        [Tooltip("Maximum number of jumps allowed (1 = single jump, 2 = double jump)")]
+        [Range(1, 3)]
+        public int MaxJumps = 2;
+
+        [Space(10)]
+        [Header("Camera")]
+        [Tooltip("How much to lower camera when crouching")]
+        public float CrouchCameraOffset = 0.5f;
+        
+        [Tooltip("Speed of camera transition when crouching/uncrouching")]
+        public float CameraLerpSpeed = 5f;
+
         public AudioClip LandingAudioClip;
         public AudioClip[] FootstepAudioClips;
         [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
@@ -99,6 +125,8 @@ namespace StarterAssets
         private int _animIDJump;
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
+        private int _animIDCrouched;
+        private int _animIDDoubleJump;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
@@ -111,6 +139,19 @@ namespace StarterAssets
         private const float _threshold = 0.01f;
 
         private bool _hasAnimator;
+        
+        // crouching variables
+        private bool _isCrouching;
+        private bool _crouchToggleState;
+        private float _originalHeight;
+        private float _originalCenterY;
+        
+        // double jump variables
+        private int _jumpCount;
+        
+        // camera variables
+        private float _originalCameraTargetY;
+        private float _targetCameraY;
 
         private bool IsCurrentDeviceMouse
         {
@@ -141,6 +182,14 @@ namespace StarterAssets
             // reset our timeouts on start
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
+            
+            // store original character controller values
+            _originalHeight = _controller.height;
+            _originalCenterY = _controller.center.y;
+            
+            // store original camera target position
+            _originalCameraTargetY = CinemachineCameraTarget.transform.localPosition.y;
+            _targetCameraY = _originalCameraTargetY;
 
             if (IsOwner)
             {
@@ -185,7 +234,8 @@ namespace StarterAssets
             if (!IsOwner)
                 return;
             
-            _hasAnimator = TryGetComponent(out _animator);
+            if(!_hasAnimator)
+                _hasAnimator = TryGetComponent(out _animator);
 
             // Handle menu toggle
             if (_input.menu)
@@ -196,6 +246,8 @@ namespace StarterAssets
 
             JumpAndGravity();
             GroundedCheck();
+            HandleCrouching();
+            UpdateCameraPosition();
             Move();
         }
 
@@ -214,6 +266,116 @@ namespace StarterAssets
             _animIDJump = Animator.StringToHash("Jump");
             _animIDFreeFall = Animator.StringToHash("FreeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            _animIDCrouched = Animator.StringToHash("Crouched");
+            _animIDDoubleJump = Animator.StringToHash("DoubleJump");
+        }
+
+        private void HandleCrouching()
+        {
+            if (!Grounded) return; // Can only crouch when grounded
+            
+            bool wantsToCrouch = HoldToCrouch ? _input.crouch : _crouchToggleState;
+            
+            // Handle toggle crouch input
+            if (!HoldToCrouch && _input.crouch)
+            {
+                _crouchToggleState = !_crouchToggleState;
+                _input.crouch = false; // Reset input to prevent multiple toggles
+            }
+            
+            // Handle sprint while crouched - try to uncrouch
+            if (_isCrouching && _input.sprint)
+            {
+                if (CanUncrouch())
+                {
+                    // Force uncrouch by updating toggle state if needed
+                    if (!HoldToCrouch)
+                    {
+                        _crouchToggleState = false;
+                    }
+                    StopCrouching();
+                    // Sprint input will be processed in Move() method
+                }
+                else
+                {
+                    // Can't uncrouch, prevent sprinting
+                    _input.sprint = false;
+                }
+            }
+            
+            // Try to crouch
+            if (wantsToCrouch && !_isCrouching)
+            {
+                StartCrouching();
+            }
+            // Try to uncrouch
+            else if (!wantsToCrouch && _isCrouching)
+            {
+                if (CanUncrouch())
+                {
+                    StopCrouching();
+                }
+            }
+        }
+        
+        private void StartCrouching()
+        {
+            _isCrouching = true;
+            
+            // Stop sprinting when crouching
+            _input.sprint = false;
+            
+            // Adjust character controller
+            _controller.height = _originalHeight * 0.5f;
+            _controller.center = new Vector3(_controller.center.x, _originalCenterY * 0.5f, _controller.center.z);
+            
+            // Set target camera position for crouching
+            _targetCameraY = _originalCameraTargetY - CrouchCameraOffset;
+            
+            // Update animation
+            if (_hasAnimator)
+            {
+                _animator.SetBool(_animIDCrouched, true);
+            }
+        }
+        
+        private void StopCrouching()
+        {
+            _isCrouching = false;
+            
+            // Restore character controller
+            _controller.height = _originalHeight;
+            _controller.center = new Vector3(_controller.center.x, _originalCenterY, _controller.center.z);
+            
+            // Restore target camera position
+            _targetCameraY = _originalCameraTargetY;
+            
+            // Update animation
+            if (_hasAnimator)
+            {
+                _animator.SetBool(_animIDCrouched, false);
+            }
+        }
+        
+        private void UpdateCameraPosition()
+        {
+            // Only update camera for owner
+            if (!IsOwner)
+                return;
+                
+            // Smoothly lerp camera target position
+            Vector3 currentPos = CinemachineCameraTarget.transform.localPosition;
+            float newY = Mathf.Lerp(currentPos.y, _targetCameraY, CameraLerpSpeed * Time.deltaTime);
+            CinemachineCameraTarget.transform.localPosition = new Vector3(currentPos.x, newY, currentPos.z);
+        }
+        
+        private bool CanUncrouch()
+        {
+            // Calculate the position where the character's head would be when standing
+            Vector3 topPosition = transform.position + Vector3.up * (_originalHeight - _controller.radius);
+            
+            // Check for obstacles at head level using CheckSphere
+            return !Physics.CheckSphere(topPosition, _controller.radius, GroundLayers, QueryTriggerInteraction.Ignore);
         }
 
         private void GroundedCheck()
@@ -228,6 +390,12 @@ namespace StarterAssets
             if (_hasAnimator)
             {
                 _animator.SetBool(_animIDGrounded, Grounded);
+            }
+            
+            // Reset jump count when grounded
+            if (Grounded && _jumpCount > 0)
+            {
+                _jumpCount = 0;
             }
         }
 
@@ -260,6 +428,12 @@ namespace StarterAssets
         {
             // set target speed based on move speed, sprint speed and if sprint is pressed
             float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
+            
+            // Apply crouch speed multiplier
+            if (_isCrouching)
+            {
+                targetSpeed *= CrouchSpeedMultiplier;
+            }
 
             // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
@@ -336,6 +510,7 @@ namespace StarterAssets
                 {
                     _animator.SetBool(_animIDJump, false);
                     _animator.SetBool(_animIDFreeFall, false);
+                    _animator.SetBool(_animIDDoubleJump, false);
                 }
 
                 // stop our velocity dropping infinitely when grounded
@@ -347,14 +522,22 @@ namespace StarterAssets
                 // Jump
                 if (_input.jump && _jumpTimeoutDelta <= 0.0f)
                 {
-                    // the square root of H * -2 * G = how much velocity needed to reach desired height
-                    _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-
-                    // update animator if using character
-                    if (_hasAnimator)
+                    // Try to uncrouch before jumping if crouching
+                    if (_isCrouching)
                     {
-                        _animator.SetBool(_animIDJump, true);
+                        if (CanUncrouch())
+                        {
+                            StopCrouching();
+                        }
+                        else
+                        {
+                            // Can't uncrouch, so can't jump
+                            _input.jump = false;
+                            return;
+                        }
                     }
+                    
+                    PerformJump();
                 }
 
                 // jump timeout
@@ -382,8 +565,16 @@ namespace StarterAssets
                     }
                 }
 
-                // if we are not grounded, do not jump
-                _input.jump = false;
+                // Handle double jump when not grounded
+                if (_input.jump && EnableDoubleJump && _jumpCount < MaxJumps)
+                {
+                    PerformJump();
+                }
+                else
+                {
+                    // if we are not grounded and can't double jump, do not jump
+                    _input.jump = false;
+                }
             }
 
             // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
@@ -391,6 +582,30 @@ namespace StarterAssets
             {
                 _verticalVelocity += Gravity * Time.deltaTime;
             }
+        }
+        
+        private void PerformJump()
+        {
+            // Increment jump count
+            _jumpCount++;
+            
+            // the square root of H * -2 * G = how much velocity needed to reach desired height
+            _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+
+            // update animator if using character
+            if (_hasAnimator)
+            {
+                if (_jumpCount == 1)
+                {
+                    _animator.SetBool(_animIDJump, true);
+                }
+                else if (_jumpCount == 2 && EnableDoubleJump)
+                {
+                    _animator.SetBool(_animIDDoubleJump, true);
+                }
+            }
+            
+            _input.jump = false;
         }
 
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
