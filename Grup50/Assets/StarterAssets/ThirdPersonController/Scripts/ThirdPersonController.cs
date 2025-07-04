@@ -888,6 +888,15 @@ namespace StarterAssets
             // Store slide momentum for preservation
             Vector3 slideMomentum = _slideDirection * (_slideSpeed * SlideJumpMomentumMultiplier);
             
+            // Clear crouch input to prevent auto-slide on landing
+            _input.crouch = false;
+            
+            // If using toggle crouch, also clear the toggle state
+            if (!HoldToCrouch)
+            {
+                _crouchToggleState = false;
+            }
+            
             // Stop sliding without transitioning to crouch (for jump)
             StopSlidingForJump();
             
