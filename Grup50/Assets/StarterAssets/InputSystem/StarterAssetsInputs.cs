@@ -12,6 +12,7 @@ namespace StarterAssets
 		public Vector2 look;
 		public bool jump;
 		public bool sprint;
+		public bool crouch;
 		public bool menu;
 
 		[Header("Movement Settings")]
@@ -45,6 +46,11 @@ namespace StarterAssets
 			SprintInput(value.isPressed);
 		}
 
+		public void OnCrouch(InputValue value)
+		{
+			CrouchInput(value.isPressed);
+		}
+
 		public void OnMenu(InputValue value)
 		{
 			MenuInput(value.isPressed);
@@ -70,6 +76,11 @@ namespace StarterAssets
 		public void SprintInput(bool newSprintState)
 		{
 			sprint = newSprintState;
+		}
+
+		public void CrouchInput(bool newCrouchState)
+		{
+			crouch = newCrouchState;
 		}
 
 		public void MenuInput(bool newMenuState)

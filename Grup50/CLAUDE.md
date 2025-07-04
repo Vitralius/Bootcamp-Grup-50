@@ -45,6 +45,18 @@ This is a Unity 3D multiplayer game project built using:
 
 ## Development Guidelines
 
+### Character System Guidelines
+- **Always refer to ThirdPersonCharacter.md** for any character-related modifications
+- **Always check web research** before implementing character system changes
+- **Network-first design** - consider multiplayer implications for all character features
+
+### Update vs FixedUpdate Guidelines
+- **Use Update() for**: Input handling, CharacterController.Move(), animations, UI updates
+- **Use FixedUpdate() for**: Rigidbody physics operations (AddForce, velocity changes)
+- **CharacterController Exception**: Always use Update() for CharacterController - FixedUpdate() causes visual stuttering
+- **Input Best Practice**: Handle input in Update() to avoid missing button presses
+- **Physics Timing**: Use Time.deltaTime for frame-rate independent calculations in Update()
+
 ### Networking Best Practices
 1. Always check `IsOwner` before processing input
 2. Use ServerRpc for client-to-server communication
