@@ -1,19 +1,16 @@
-![image](https://github.com/user-attachments/assets/4c607eb2-d2c9-4a3b-9823-2c39344a9a82)# Bootcamp-Grup-50
-
-# **SPRINT 1**
+# **Bootcamp-Grup-50**
 ## Takım İsmi
 ARCEON
 ## **Takım Logosu**
 ![logoson](https://github.com/user-attachments/assets/e72aef27-405f-4861-ab9c-a18bc96457d7)
-
-
-
 ## Takım Üyeleri
 - ***Muhammed Berk Köse*** - Product Owner
 - ***Çağatay Öztürk*** - Scrum Master
 - ***Günay İlgazi*** - Developer
 - ***Rümeysa Ekşi*** - Developer
 - ***Dorukhan Yıldız*** - Developer
+
+# **SPRINT 1**
 
 ## SPRINT BOARD UPDATE:
 Sprint board, Trello üzerinden güncellenmiştir. Güncel halinin ekran görüntüsü aşağıdaki gibi sunulmuştur.
