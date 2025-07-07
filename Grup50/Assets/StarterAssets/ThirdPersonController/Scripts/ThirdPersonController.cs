@@ -296,15 +296,6 @@ namespace StarterAssets
             Move();
         }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        private void OnGUI()
-        {
-            if (ShowDebugInfo)
-            {
-                DrawDebugInfo();
-            }
-        }
-
         private void LateUpdate()
         {
             if (!IsOwner)
@@ -324,6 +315,16 @@ namespace StarterAssets
             _animIDDoubleJump = Animator.StringToHash("DoubleJump");
             _animIDSliding = Animator.StringToHash("Sliding");
         }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private void OnGUI()
+        {
+            if (ShowDebugInfo)
+            {
+                DrawDebugInfo();
+            }
+        }
+#endif
 
         private void HandleCrouchingAndSliding()
         {
@@ -874,7 +875,7 @@ namespace StarterAssets
                 {
                     _animator.SetBool(_animIDJump, true);
                 }
-                else if (_jumpCount == 2 && EnableDoubleJump)
+                else if (_jumpCount >= 2 && EnableDoubleJump)
                 {
                     _animator.SetBool(_animIDDoubleJump, true);
                 }
@@ -1027,7 +1028,6 @@ namespace StarterAssets
             float speedPercentage = maxPossibleSpeed > 0 ? (currentSpeed / maxPossibleSpeed) * 100f : 0f;
             return $"Speed: {speedPercentage:F0}% ({currentSpeed:F1}m/s)";
         }
-#endif
 
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
         {

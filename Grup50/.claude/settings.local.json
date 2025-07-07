@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "WebFetch(domain:docs.unity.com)"
+      "WebFetch(domain:docs.unity.com)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }
