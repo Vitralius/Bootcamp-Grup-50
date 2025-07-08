@@ -1154,6 +1154,21 @@ MonoBehaviour:
   SprintSpeed: 5.335
   RotationSmoothTime: 0.12
   SpeedChangeRate: 10
+  HoldToCrouch: 1
+  CrouchSpeedMultiplier: 0.5
+  SlideSpeedThreshold: 2.5
+  MaxSlideSpeed: 10
+  SlideDeceleration: 7
+  MinSlideDuration: 0.2
+  SlideJumpMomentumMultiplier: 1.2
+  SlideSteeringControl: 1
+  SlideEntryBoost: 1.4
+  EnableDoubleJump: 1
+  MaxJumps: 3
+  CrouchCameraOffset: 0.5
+  CameraLerpSpeed: 5
+  ShowDebugInfo: 1
+  DebugTextHeight: 0
   LandingAudioClip: {fileID: 8300000, guid: ff697d3070687ce4583faa0561a145a2, type: 3}
   FootstepAudioClips:
   - {fileID: 8300000, guid: 72f526a6a9890f643a88e85a61c86c8a, type: 3}
@@ -1224,6 +1239,7 @@ MonoBehaviour:
   look: {x: 0, y: 0}
   jump: 0
   sprint: 0
+  crouch: 0
   menu: 0
   analogMovement: 0
   cursorLocked: 1
