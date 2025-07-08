@@ -260,9 +260,14 @@ public class LobbyUI : MonoBehaviour
     {
         if (readySystem != null)
         {
-            isReady = !isReady;
-            readySystem.SetPlayerReady(isReady);
+            bool newReadyState = !isReady;
+            Debug.Log($"Lobby Ready button clicked: changing from {isReady} to {newReadyState}");
             
+            // Send to server first
+            readySystem.SetPlayerReady(newReadyState);
+            
+            // Update local state immediately for responsiveness
+            isReady = newReadyState;
             UpdateReadyButton();
             UpdateStatusText(isReady ? LocalizationManager.Instance.GetLocalizedText("menu_ready") : LocalizationManager.Instance.GetLocalizedText("menu_not_ready"));
         }

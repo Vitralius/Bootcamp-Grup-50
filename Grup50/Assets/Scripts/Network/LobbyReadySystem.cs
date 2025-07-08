@@ -23,8 +23,6 @@ public class LobbyReadySystem : NetworkBehaviour
     
     public void SetPlayerReady(bool ready)
     {
-        if (!IsOwner) return;
-        
         string playerId = AuthenticationService.Instance.PlayerId;
         Debug.Log($"Setting player ready: {playerId} = {ready}");
         SetPlayerReadyServerRpc(playerId, ready);
@@ -33,9 +31,12 @@ public class LobbyReadySystem : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     private void SetPlayerReadyServerRpc(string playerId, bool ready)
     {
+        Debug.Log($"[SERVER] SetPlayerReadyServerRpc: {playerId} = {ready}");
+        
         if (!playerReadyStates.ContainsKey(playerId))
         {
             playerReadyStates[playerId] = false;
+            Debug.Log($"[SERVER] Added new player to ready states: {playerId}");
         }
         
         bool wasReady = playerReadyStates[playerId];
@@ -45,10 +46,12 @@ public class LobbyReadySystem : NetworkBehaviour
         if (ready && !wasReady)
         {
             readyPlayerCount.Value++;
+            Debug.Log($"[SERVER] Incremented ready count to {readyPlayerCount.Value}");
         }
         else if (!ready && wasReady)
         {
             readyPlayerCount.Value--;
+            Debug.Log($"[SERVER] Decremented ready count to {readyPlayerCount.Value}");
         }
         
         // Notify clients about player ready state change
@@ -58,12 +61,19 @@ public class LobbyReadySystem : NetworkBehaviour
         bool allReady = AreAllPlayersReady();
         NotifyAllPlayersReadyChangedClientRpc(allReady);
         
-        Debug.Log($"Player {playerId} ready state: {ready}. Ready count: {readyPlayerCount.Value}");
+        Debug.Log($"[SERVER] Player {playerId} ready state: {ready}. Total ready: {readyPlayerCount.Value}");
+        
+        // Debug: Print all player states
+        foreach (var kvp in playerReadyStates)
+        {
+            Debug.Log($"[SERVER] Player {kvp.Key}: {(kvp.Value ? "Ready" : "Not Ready")}");
+        }
     }
     
     [ClientRpc]
     private void NotifyPlayerReadyChangedClientRpc(string playerId, bool ready)
     {
+        Debug.Log($"[CLIENT] NotifyPlayerReadyChangedClientRpc: {playerId} = {ready}");
         OnPlayerReadyChanged?.Invoke(playerId, ready);
     }
     

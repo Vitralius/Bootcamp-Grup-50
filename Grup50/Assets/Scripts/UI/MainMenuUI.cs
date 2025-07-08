@@ -359,9 +359,13 @@ public class MainMenuUI : MonoBehaviour
     
     private void OnPlayerReadyChanged(string playerId, bool ready)
     {
+        Debug.Log($"OnPlayerReadyChanged: {playerId} = {ready}");
+        
         // Update local ready state if it's our player
-        if (playerId == Unity.Services.Authentication.AuthenticationService.Instance.PlayerId)
+        string localPlayerId = Unity.Services.Authentication.AuthenticationService.Instance.PlayerId;
+        if (playerId == localPlayerId)
         {
+            Debug.Log($"Updating local ready state from {isReady} to {ready}");
             isReady = ready;
             UpdateReadyButton();
         }
@@ -524,10 +528,17 @@ public class MainMenuUI : MonoBehaviour
     {
         if (readySystem != null)
         {
-            isReady = !isReady;
-            readySystem.SetPlayerReady(isReady);
+            bool newReadyState = !isReady;
+            Debug.Log($"Ready button clicked: changing from {isReady} to {newReadyState}");
             
-            // UpdateReadyButton and status will be handled by OnPlayerReadyChanged event
+            // Send to server first
+            readySystem.SetPlayerReady(newReadyState);
+            
+            // Update local state immediately for responsiveness
+            isReady = newReadyState;
+            UpdateReadyButton();
+            
+            // Note: OnPlayerReadyChanged event will confirm the state change from server
         }
     }
     
