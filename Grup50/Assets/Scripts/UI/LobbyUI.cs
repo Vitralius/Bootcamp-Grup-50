@@ -49,6 +49,25 @@ public class LobbyUI : MonoBehaviour
         UpdateUI();
     }
     
+    private void OnEnable()
+    {
+        LocalizationManager.OnLanguageChanged += OnLanguageChanged;
+    }
+    
+    private void OnDisable()
+    {
+        LocalizationManager.OnLanguageChanged -= OnLanguageChanged;
+    }
+    
+    private void OnLanguageChanged()
+    {
+        // Refresh all UI text while preserving dynamic content
+        if (lobbyTitleText != null)
+            lobbyTitleText.text = LocalizationManager.Instance.GetLocalizedText("game_title");
+            
+        UpdateUI();
+    }
+    
     private void SetupUI()
     {
         // Setup button listeners
@@ -69,7 +88,7 @@ public class LobbyUI : MonoBehaviour
             loadingPanel.SetActive(false);
         
         if (lobbyTitleText != null)
-            lobbyTitleText.text = "Game Lobby";
+            lobbyTitleText.text = LocalizationManager.Instance.GetLocalizedText("game_title");
         
         UpdateReadyButton();
         UpdateStartGameButton();
@@ -93,6 +112,8 @@ public class LobbyUI : MonoBehaviour
     
     private void UnsubscribeFromEvents()
     {
+        LocalizationManager.OnLanguageChanged -= OnLanguageChanged;
+        
         if (MultiplayerManager.Instance != null)
         {
             MultiplayerManager.Instance.OnLobbyPlayersUpdated -= OnLobbyPlayersUpdated;
@@ -123,7 +144,14 @@ public class LobbyUI : MonoBehaviour
             
             if (lobbyCodeText != null)
             {
-                lobbyCodeText.text = string.IsNullOrEmpty(lobbyCode) ? "No Code" : lobbyCode;
+                if (string.IsNullOrEmpty(lobbyCode))
+                {
+                    lobbyCodeText.text = LocalizationManager.Instance.GetLocalizedText("error_no_code");
+                }
+                else
+                {
+                    lobbyCodeText.text = string.Format("{0}: {1}", LocalizationManager.Instance.GetLocalizedText("lobby_code_label"), lobbyCode);
+                }
             }
         }
     }
@@ -166,7 +194,7 @@ public class LobbyUI : MonoBehaviour
             // Update player count
             if (playerCountText != null)
             {
-                playerCountText.text = $"Players: {playerNames.Count}/4";
+                playerCountText.text = string.Format("{0}: {1}/4", LocalizationManager.Instance.GetLocalizedText("players_list"), playerNames.Count);
             }
         }
     }
@@ -175,12 +203,22 @@ public class LobbyUI : MonoBehaviour
     {
         if (readyButton != null && readyButtonText != null)
         {
-            readyButtonText.text = isReady ? "Not Ready" : "Ready";
+            // Disable LocalizedText component if it exists to prevent interference
+            var localizedText = readyButtonText.GetComponent<LocalizedText>();
+            if (localizedText != null)
+            {
+                localizedText.enabled = false;
+            }
+            
+            // Show current status (what the player IS)
+            readyButtonText.text = isReady ? LocalizationManager.Instance.GetLocalizedText("menu_ready") : LocalizationManager.Instance.GetLocalizedText("menu_not_ready");
             
             // Change button color based on ready state
             var colors = readyButton.colors;
-            colors.normalColor = isReady ? Color.red : Color.green;
+            colors.normalColor = isReady ? Color.green : Color.red;
             readyButton.colors = colors;
+            
+            Debug.Log($"Lobby Ready button updated: isReady={isReady}, text='{readyButtonText.text}'");
         }
     }
     
@@ -191,7 +229,7 @@ public class LobbyUI : MonoBehaviour
             int readyCount = readySystem.GetReadyPlayerCount();
             int totalCount = MultiplayerManager.Instance?.GetLobbyPlayerNames().Count ?? 0;
             
-            readyStatusText.text = $"Ready: {readyCount}/{totalCount}";
+            readyStatusText.text = string.Format("{0}: {1}/{2}", LocalizationManager.Instance.GetLocalizedText("menu_ready"), readyCount, totalCount);
         }
     }
     
@@ -214,7 +252,7 @@ public class LobbyUI : MonoBehaviour
         if (MultiplayerManager.Instance != null)
         {
             MultiplayerManager.Instance.CopyLobbyCodeToClipboard();
-            UpdateStatusText("Lobby code copied to clipboard!");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_lobby_code_copied"));
         }
     }
     
@@ -226,7 +264,7 @@ public class LobbyUI : MonoBehaviour
             readySystem.SetPlayerReady(isReady);
             
             UpdateReadyButton();
-            UpdateStatusText(isReady ? "You are ready!" : "You are not ready");
+            UpdateStatusText(isReady ? LocalizationManager.Instance.GetLocalizedText("menu_ready") : LocalizationManager.Instance.GetLocalizedText("menu_not_ready"));
         }
     }
     
@@ -236,7 +274,7 @@ public class LobbyUI : MonoBehaviour
         {
             if (readySystem != null && readySystem.AreAllPlayersReady())
             {
-                UpdateStatusText("Starting game...");
+                UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_starting"));
                 
                 if (SceneTransitionManager.Instance != null)
                 {
@@ -245,12 +283,12 @@ public class LobbyUI : MonoBehaviour
             }
             else
             {
-                UpdateStatusText("Not all players are ready!");
+                UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_players_not_ready"));
             }
         }
         else
         {
-            UpdateStatusText("Only the host can start the game!");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_only_host_can_start"));
         }
     }
     
@@ -258,7 +296,7 @@ public class LobbyUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance != null)
         {
-            UpdateStatusText("Leaving lobby...");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_leaving_lobby"));
             await MultiplayerManager.Instance.LeaveLobby();
             
             // Return to main menu
@@ -278,23 +316,23 @@ public class LobbyUI : MonoBehaviour
     
     private void OnLobbyLeft()
     {
-        UpdateStatusText("Left lobby");
+        UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_left_lobby"));
     }
     
     private void OnLobbyError(string errorMessage)
     {
-        UpdateStatusText($"Error: {errorMessage}");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("error_generic"), errorMessage));
     }
     
     private void OnSceneTransitionStarted(string sceneName)
     {
-        UpdateStatusText($"Loading {sceneName}...");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("status_loading_scene"), sceneName));
         ShowLoading(true);
     }
     
     private void OnSceneTransitionFailed(string sceneName)
     {
-        UpdateStatusText($"Failed to load {sceneName}");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("error_failed_load_scene"), sceneName));
         ShowLoading(false);
     }
     
