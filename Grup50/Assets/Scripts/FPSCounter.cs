@@ -48,7 +48,7 @@ public class FPSCounter : MonoBehaviour
             float msec = 1000.0f / fps;
             
             // Format the display text
-            fpsText = string.Format("{0:0.} FPS ({1:0.0}ms)", fps, msec);
+            fpsText = string.Format(LocalizationManager.Instance?.GetLocalizedText("fps_counter") ?? "{0:0.} FPS ({1:0.0}ms)", fps, msec);
             
             timeleft = updateInterval;
             accum = 0.0f;

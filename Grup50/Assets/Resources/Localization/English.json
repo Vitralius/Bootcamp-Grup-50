@@ -1,0 +1,164 @@
+{
+    "items": [
+        {
+            "key": "game_title",
+            "value": "Crown of Shadows"
+        },
+        {
+            "key": "menu_create_lobby",
+            "value": "Create Lobby"
+        },
+        {
+            "key": "menu_join_lobby",
+            "value": "Join Lobby"
+        },
+        {
+            "key": "menu_leave_lobby",
+            "value": "Leave Lobby"
+        },
+        {
+            "key": "menu_quit_game",
+            "value": "Quit Game"
+        },
+        {
+            "key": "menu_start",
+            "value": "Start"
+        },
+        {
+            "key": "menu_join",
+            "value": "Join"
+        },
+        {
+            "key": "menu_ready",
+            "value": "Ready"
+        },
+        {
+            "key": "menu_not_ready",
+            "value": "Not Ready"
+        },
+        {
+            "key": "menu_back",
+            "value": "Back"
+        },
+        {
+            "key": "menu_copy_code",
+            "value": "Copy Code"
+        },
+        {
+            "key": "input_lobby_code",
+            "value": "Enter lobby code"
+        },
+        {
+            "key": "lobby_code_label",
+            "value": "Lobby Code"
+        },
+        {
+            "key": "players_list",
+            "value": "Players List"
+        },
+        {
+            "key": "status_label",
+            "value": "Status"
+        },
+        {
+            "key": "status_ready_to_start",
+            "value": "Create or join a lobby to start playing."
+        },
+        {
+            "key": "status_creating_lobby",
+            "value": "Creating lobby..."
+        },
+        {
+            "key": "status_failed_create_lobby",
+            "value": "Failed to create lobby!"
+        },
+        {
+            "key": "status_enter_lobby_code",
+            "value": "Please enter lobby code"
+        },
+        {
+            "key": "status_joining_lobby",
+            "value": "Joining lobby {lobbyCode}..."
+        },
+        {
+            "key": "status_failed_join_lobby",
+            "value": "Failed to join lobby"
+        },
+        {
+            "key": "status_lobby_code_format",
+            "value": "Lobby Code: {lobbyCode}"
+        },
+        {
+            "key": "status_left_lobby",
+            "value": "Left lobby"
+        },
+        {
+            "key": "status_loading_scene",
+            "value": "Loading {sceneName}..."
+        },
+        {
+            "key": "status_everyone_ready",
+            "value": "Everyone ready! You can start."
+        },
+        {
+            "key": "status_players_count",
+            "value": "Players: ({currentPlayers}/{maxPlayers}):"
+        },
+        {
+            "key": "status_lobby_code_copied",
+            "value": "Lobby code copied!"
+        },
+        {
+            "key": "status_starting",
+            "value": "Starting..."
+        },
+        {
+            "key": "status_players_not_ready",
+            "value": "Some players are not ready!"
+        },
+        {
+            "key": "status_only_host_can_start",
+            "value": "Only the host can start the game!"
+        },
+        {
+            "key": "status_leaving_lobby",
+            "value": "Leaving lobby..."
+        },
+        {
+            "key": "error_multiplayer_manager_not_found",
+            "value": "MultiplayerManager not found!"
+        },
+        {
+            "key": "error_no_code",
+            "value": "No Code"
+        },
+        {
+            "key": "error_no_players",
+            "value": "No players"
+        },
+        {
+            "key": "error_generic",
+            "value": "Error: {errorMessage}"
+        },
+        {
+            "key": "error_failed_load_scene",
+            "value": "Failed to load {sceneName}"
+        },
+        {
+            "key": "fps_counter",
+            "value": "{0:0.} FPS ({1:0.0}ms)"
+        },
+        {
+            "key": "language_english",
+            "value": "English"
+        },
+        {
+            "key": "language_turkish",
+            "value": "Türkçe"
+        },
+        {
+            "key": "language_switch",
+            "value": "Language"
+        }
+    ]
+}

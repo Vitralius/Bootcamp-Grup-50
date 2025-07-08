@@ -31,6 +31,32 @@ public class MultiplayerLobbyUI : MonoBehaviour
         UpdateUIState();
     }
     
+    private void OnEnable()
+    {
+        LocalizationManager.OnLanguageChanged += OnLanguageChanged;
+    }
+    
+    private void OnDisable()
+    {
+        LocalizationManager.OnLanguageChanged -= OnLanguageChanged;
+    }
+    
+    private void OnLanguageChanged()
+    {
+        // Refresh UI while preserving dynamic content
+        UpdateUIState();
+        
+        // Update lobby code and player list if in lobby
+        if (MultiplayerManager.Instance != null && MultiplayerManager.Instance.IsInLobby())
+        {
+            string lobbyCode = MultiplayerManager.Instance.GetCurrentLobbyCode();
+            UpdateLobbyCodeDisplay(lobbyCode);
+            
+            var playerNames = MultiplayerManager.Instance.GetLobbyPlayerNames();
+            UpdatePlayersList(playerNames);
+        }
+    }
+    
     private void SetupUI()
     {
         // Setup button listeners
@@ -54,7 +80,7 @@ public class MultiplayerLobbyUI : MonoBehaviour
         }
         
         // Initialize UI text
-        UpdateStatusText("Ready to create or join lobby");
+        UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_ready_to_start"));
         UpdateLobbyCodeDisplay("");
         UpdatePlayersList(new List<string>());
     }
@@ -73,6 +99,8 @@ public class MultiplayerLobbyUI : MonoBehaviour
     
     private void UnsubscribeFromEvents()
     {
+        LocalizationManager.OnLanguageChanged -= OnLanguageChanged;
+        
         if (MultiplayerManager.Instance != null)
         {
             MultiplayerManager.Instance.OnLobbyCodeGenerated -= OnLobbyCodeGenerated;
@@ -87,19 +115,19 @@ public class MultiplayerLobbyUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance == null)
         {
-            UpdateStatusText("MultiplayerManager not found!");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("error_multiplayer_manager_not_found"));
             return;
         }
         
         SetButtonsInteractable(false);
-        UpdateStatusText("Creating lobby...");
+        UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_creating_lobby"));
         
         string lobbyCode = await MultiplayerManager.Instance.CreateLobby();
         
         if (string.IsNullOrEmpty(lobbyCode))
         {
             SetButtonsInteractable(true);
-            UpdateStatusText("Failed to create lobby");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_failed_create_lobby"));
         }
     }
     
@@ -107,27 +135,27 @@ public class MultiplayerLobbyUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance == null)
         {
-            UpdateStatusText("MultiplayerManager not found!");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("error_multiplayer_manager_not_found"));
             return;
         }
         
         if (lobbyCodeInputField == null || string.IsNullOrEmpty(lobbyCodeInputField.text))
         {
-            UpdateStatusText("Please enter a lobby code");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_enter_lobby_code"));
             return;
         }
         
         string inputCode = lobbyCodeInputField.text.ToUpper().Trim();
         
         SetButtonsInteractable(false);
-        UpdateStatusText($"Joining lobby {inputCode}...");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("status_joining_lobby"), inputCode));
         
         bool success = await MultiplayerManager.Instance.JoinLobbyByCode(inputCode);
         
         if (!success)
         {
             SetButtonsInteractable(true);
-            UpdateStatusText("Failed to join lobby");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_failed_join_lobby"));
         }
     }
     
@@ -135,12 +163,12 @@ public class MultiplayerLobbyUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance == null)
         {
-            UpdateStatusText("MultiplayerManager not found!");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("error_multiplayer_manager_not_found"));
             return;
         }
         
         SetButtonsInteractable(false);
-        UpdateStatusText("Leaving lobby...");
+        UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_leaving_lobby"));
         
         await MultiplayerManager.Instance.LeaveLobby();
     }
@@ -149,39 +177,39 @@ public class MultiplayerLobbyUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance == null)
         {
-            UpdateStatusText("MultiplayerManager not found!");
+            UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("error_multiplayer_manager_not_found"));
             return;
         }
         
         MultiplayerManager.Instance.CopyLobbyCodeToClipboard();
-        UpdateStatusText("Lobby code copied to clipboard!");
+        UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_lobby_code_copied"));
     }
     
     private void OnLobbyCodeGenerated(string lobbyCode)
     {
         UpdateLobbyCodeDisplay(lobbyCode);
-        UpdateStatusText($"Lobby created! Code: {lobbyCode}");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("status_lobby_code_format"), lobbyCode));
         UpdateUIState();
     }
     
     private void OnLobbyJoined(string lobbyCode)
     {
         UpdateLobbyCodeDisplay(lobbyCode);
-        UpdateStatusText($"Joined lobby: {lobbyCode}");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("status_lobby_code_format"), lobbyCode));
         UpdateUIState();
     }
     
     private void OnLobbyLeft()
     {
         UpdateLobbyCodeDisplay("");
-        UpdateStatusText("Left lobby");
+        UpdateStatusText(LocalizationManager.Instance.GetLocalizedText("status_left_lobby"));
         UpdatePlayersList(new List<string>());
         UpdateUIState();
     }
     
     private void OnLobbyError(string errorMessage)
     {
-        UpdateStatusText($"Error: {errorMessage}");
+        UpdateStatusText(string.Format(LocalizationManager.Instance.GetLocalizedText("error_generic"), errorMessage));
         SetButtonsInteractable(true);
     }
     
@@ -253,11 +281,11 @@ public class MultiplayerLobbyUI : MonoBehaviour
         {
             if (string.IsNullOrEmpty(lobbyCode))
             {
-                lobbyCodeDisplayText.text = "No lobby code";
+                lobbyCodeDisplayText.text = LocalizationManager.Instance.GetLocalizedText("error_no_code");
             }
             else
             {
-                lobbyCodeDisplayText.text = $"Lobby Code: {lobbyCode}";
+                lobbyCodeDisplayText.text = string.Format("{0}: {1}", LocalizationManager.Instance.GetLocalizedText("lobby_code_label"), lobbyCode);
             }
         }
     }
@@ -268,11 +296,12 @@ public class MultiplayerLobbyUI : MonoBehaviour
         {
             if (playerNames == null || playerNames.Count == 0)
             {
-                playersListText.text = "No players";
+                playersListText.text = LocalizationManager.Instance.GetLocalizedText("error_no_players");
             }
             else
             {
-                playersListText.text = $"Players ({playerNames.Count}):\n" + string.Join("\n", playerNames);
+                string playersLabel = string.Format("{0} ({1}):", LocalizationManager.Instance.GetLocalizedText("players_list"), playerNames.Count);
+                playersListText.text = playersLabel + "\n" + string.Join("\n", playerNames);
             }
         }
     }

@@ -27,7 +27,7 @@
                     "name": "Jump",
                     "type": "Button",
                     "id": "8c4abdf8-4099-493a-aa1a-129acec7c3df",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
@@ -45,6 +45,15 @@
                     "name": "Menu",
                     "type": "Button",
                     "id": "5fb8d43e-2106-4640-b33e-337e3c4bb8e7",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Crouch",
+                    "type": "PassThrough",
+                    "id": "186bb52a-3721-40a1-afe0-a67c3bed2172",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -236,6 +245,17 @@
                     "processors": "",
                     "groups": ";KeyboardMouse",
                     "action": "Menu",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "f54bbd9c-ddd6-4d4d-ac31-eab02cc55799",
+                    "path": "<Keyboard>/leftCtrl",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Crouch",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

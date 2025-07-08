@@ -1,0 +1,164 @@
+{
+    "items": [
+        {
+            "key": "game_title",
+            "value": "Gölgelerin Tacı"
+        },
+        {
+            "key": "menu_create_lobby",
+            "value": "Lobi Oluştur"
+        },
+        {
+            "key": "menu_join_lobby",
+            "value": "Lobi'ye Katıl"
+        },
+        {
+            "key": "menu_leave_lobby",
+            "value": "Lobiden Çık"
+        },
+        {
+            "key": "menu_quit_game",
+            "value": "Oyundan Çık"
+        },
+        {
+            "key": "menu_start",
+            "value": "Başlat"
+        },
+        {
+            "key": "menu_join",
+            "value": "Katıl"
+        },
+        {
+            "key": "menu_ready",
+            "value": "Hazır"
+        },
+        {
+            "key": "menu_not_ready",
+            "value": "Hazır Değil"
+        },
+        {
+            "key": "menu_back",
+            "value": "Geri"
+        },
+        {
+            "key": "menu_copy_code",
+            "value": "Kodu Kopyala"
+        },
+        {
+            "key": "input_lobby_code",
+            "value": "Lobi kodunu gir"
+        },
+        {
+            "key": "lobby_code_label",
+            "value": "Lobi Kodu"
+        },
+        {
+            "key": "players_list",
+            "value": "Oyuncu Listesi"
+        },
+        {
+            "key": "status_label",
+            "value": "Durum"
+        },
+        {
+            "key": "status_ready_to_start",
+            "value": "Oynamaya başlamak için bir lobi oluşturun veya lobiye katılın."
+        },
+        {
+            "key": "status_creating_lobby",
+            "value": "Lobi oluşturuluyor..."
+        },
+        {
+            "key": "status_failed_create_lobby",
+            "value": "Lobi oluşturulamadı!"
+        },
+        {
+            "key": "status_enter_lobby_code",
+            "value": "Lütfen lobi kodu girin"
+        },
+        {
+            "key": "status_joining_lobby",
+            "value": "Lobi'ye katılınıyor {lobbyCode}..."
+        },
+        {
+            "key": "status_failed_join_lobby",
+            "value": "Lobi'ye katılamadı"
+        },
+        {
+            "key": "status_lobby_code_format",
+            "value": "Lobi Kodu: {lobbyCode}"
+        },
+        {
+            "key": "status_left_lobby",
+            "value": "Lobiden çıkıldı"
+        },
+        {
+            "key": "status_loading_scene",
+            "value": "Yükleniyor {sceneName}..."
+        },
+        {
+            "key": "status_everyone_ready",
+            "value": "Herkes hazır! Başlayabilirsiniz."
+        },
+        {
+            "key": "status_players_count",
+            "value": "Oyuncular: ({currentPlayers}/{maxPlayers}):"
+        },
+        {
+            "key": "status_lobby_code_copied",
+            "value": "Lobi kodu kopyalandı!"
+        },
+        {
+            "key": "status_starting",
+            "value": "Başlıyor..."
+        },
+        {
+            "key": "status_players_not_ready",
+            "value": "Hazır olmayan oyuncular var!"
+        },
+        {
+            "key": "status_only_host_can_start",
+            "value": "Sadece kurucu oyunu başlatabilir!"
+        },
+        {
+            "key": "status_leaving_lobby",
+            "value": "Lobiden çıkılıyor..."
+        },
+        {
+            "key": "error_multiplayer_manager_not_found",
+            "value": "MultiplayerManager bulunamadı!"
+        },
+        {
+            "key": "error_no_code",
+            "value": "Kod Yok"
+        },
+        {
+            "key": "error_no_players",
+            "value": "Oyuncu yok"
+        },
+        {
+            "key": "error_generic",
+            "value": "Hata: {errorMessage}"
+        },
+        {
+            "key": "error_failed_load_scene",
+            "value": "{sceneName} yüklenemedi"
+        },
+        {
+            "key": "fps_counter",
+            "value": "{0:0.} FPS ({1:0.0}ms)"
+        },
+        {
+            "key": "language_english",
+            "value": "English"
+        },
+        {
+            "key": "language_turkish",
+            "value": "Türkçe"
+        },
+        {
+            "key": "language_switch",
+            "value": "Dil"
+        }
+    ]
+}
