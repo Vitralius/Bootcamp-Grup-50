@@ -30,6 +30,8 @@ public class MainMenuUI : MonoBehaviour
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private GameObject loadingPanel;
     
+    private StatusTextManager statusManager;
+    
     [Header("Game Title")]
     [SerializeField] private TMP_Text gameTitleText;
     
@@ -38,10 +40,50 @@ public class MainMenuUI : MonoBehaviour
     
     private void Start()
     {
+        SetupStatusManager();
         SetupUI();
         SubscribeToEvents();
-        UpdateStatusText("Oynamaya başlamak için bir lobi oluşturun veya lobiye katılın.");
+        statusManager.ShowReadyToStart();
         
+        UpdateUIState();
+    }
+    
+    private void SetupStatusManager()
+    {
+        statusManager = statusText.GetComponent<StatusTextManager>();
+        if (statusManager == null)
+        {
+            statusManager = statusText.gameObject.AddComponent<StatusTextManager>();
+        }
+    }
+    
+    private void OnEnable()
+    {
+        LocalizationManager.OnLanguageChanged += OnLanguageChanged;
+    }
+    
+    private void OnDisable()
+    {
+        LocalizationManager.OnLanguageChanged -= OnLanguageChanged;
+    }
+    
+    private void OnLanguageChanged()
+    {
+        // Update game title
+        if (gameTitleText != null)
+            gameTitleText.text = LocalizationManager.Instance.GetLocalizedText("game_title");
+            
+        // Always update ready button text (whether in lobby or not)
+        UpdateReadyButton();
+        
+        // Update lobby-specific content if in lobby
+        if (MultiplayerManager.Instance != null && MultiplayerManager.Instance.IsInLobby())
+        {
+            UpdateLobbyInfo();
+            UpdatePlayersList();
+        }
+        
+        // Refresh all UI state
         UpdateUIState();
     }
     
@@ -94,7 +136,7 @@ public class MainMenuUI : MonoBehaviour
         
         // Set game title
         if (gameTitleText != null)
-            gameTitleText.text = "Unity Multiplayer Game";
+            gameTitleText.text = LocalizationManager.Instance.GetLocalizedText("game_title");
         
         SetButtonsInteractable(true);
     }
@@ -136,6 +178,8 @@ public class MainMenuUI : MonoBehaviour
     
     private void UnsubscribeFromEvents()
     {
+        LocalizationManager.OnLanguageChanged -= OnLanguageChanged;
+        
         if (MultiplayerManager.Instance != null)
         {
             MultiplayerManager.Instance.OnLobbyCodeGenerated -= OnLobbyCodeGenerated;
@@ -162,13 +206,13 @@ public class MainMenuUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance == null)
         {
-            UpdateStatusText("MultiplayerManager not found!");
+            statusManager.ShowMultiplayerManagerNotFound();
             return;
         }
         
         SetButtonsInteractable(false);
         ShowLoading(true);
-        UpdateStatusText("Lobi Oluşturuluyor...");
+        statusManager.ShowCreatingLobby();
         
         string lobbyCode = await MultiplayerManager.Instance.CreateLobby();
         
@@ -176,7 +220,7 @@ public class MainMenuUI : MonoBehaviour
         {
             SetButtonsInteractable(true);
             ShowLoading(false);
-            UpdateStatusText("Lobi oluşturulamadı!");
+            statusManager.ShowFailedToCreateLobby();
         }
     }
     
@@ -203,13 +247,13 @@ public class MainMenuUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance == null)
         {
-            UpdateStatusText("MultiplayerManager not found!");
+            statusManager.ShowMultiplayerManagerNotFound();
             return;
         }
         
         if (lobbyCodeInputField == null || string.IsNullOrEmpty(lobbyCodeInputField.text))
         {
-            UpdateStatusText("Lütfen Lobi Kodu Girin");
+            statusManager.ShowEnterLobbyCode();
             return;
         }
         
@@ -217,7 +261,7 @@ public class MainMenuUI : MonoBehaviour
         
         SetButtonsInteractable(false);
         ShowLoading(true);
-        UpdateStatusText($"Lobi'ye katılınıyor {inputCode}...");
+        statusManager.ShowJoiningLobby(inputCode);
         
         if (joinLobbyPanel != null)
             joinLobbyPanel.SetActive(false);
@@ -228,7 +272,7 @@ public class MainMenuUI : MonoBehaviour
         {
             SetButtonsInteractable(true);
             ShowLoading(false);
-            UpdateStatusText("Lobi'ye katılamadı");
+            statusManager.ShowFailedToJoinLobby();
         }
     }
     
@@ -264,20 +308,27 @@ public class MainMenuUI : MonoBehaviour
     
     private void OnLobbyCodeGenerated(string lobbyCode)
     {
-        UpdateStatusText($"Lobi Kodu: {lobbyCode}");
+        statusManager.ShowLobbyCode(lobbyCode);
         UpdateUIState();
     }
     
     private void OnLobbyJoined(string lobbyCode)
     {
-        UpdateStatusText($"Lobi Kodu: {lobbyCode}");
+        statusManager.ShowLobbyCode(lobbyCode);
         UpdateUIState();
     }
     
     private void OnLobbyLeft()
     {
-        UpdateStatusText("Lobiden Çıkıldı");
+        statusManager.ShowLeftLobby();
         isReady = false;
+        SetButtonsInteractable(true);
+        ShowLoading(false);
+        
+        // Hide join lobby panel if it's open
+        if (joinLobbyPanel != null)
+            joinLobbyPanel.SetActive(false);
+            
         UpdateUIState();
     }
     
@@ -289,19 +340,19 @@ public class MainMenuUI : MonoBehaviour
     
     private void OnLobbyError(string errorMessage)
     {
-        UpdateStatusText($"Error: {errorMessage}");
+        statusManager.ShowError(errorMessage);
         SetButtonsInteractable(true);
         ShowLoading(false);
     }
     
     private void OnSceneTransitionStarted(string sceneName)
     {
-        UpdateStatusText($"Yükleniyor {sceneName}...");
+        statusManager.ShowLoadingScene(sceneName);
     }
     
     private void OnSceneTransitionFailed(string sceneName)
     {
-        UpdateStatusText($"Failed to load {sceneName}");
+        statusManager.ShowFailedToLoadScene(sceneName);
         SetButtonsInteractable(true);
         ShowLoading(false);
     }
@@ -325,20 +376,31 @@ public class MainMenuUI : MonoBehaviour
         UpdateStartGameButton();
         if (allReady && readySystem != null)
         {
-            UpdateStatusText("Herkes Hazır! Başlıyabilirsiniz.");
+            statusManager.ShowEveryoneReady();
         }
     }
     
     private void SetButtonsInteractable(bool interactable)
     {
+        Debug.Log($"Setting buttons interactable: {interactable}");
+        
         if (createLobbyButton != null)
+        {
             createLobbyButton.interactable = interactable;
+            Debug.Log($"Create button interactable: {createLobbyButton.interactable}");
+        }
         
         if (joinLobbyButton != null)
+        {
             joinLobbyButton.interactable = interactable;
+            Debug.Log($"Join button interactable: {joinLobbyButton.interactable}");
+        }
         
         if (quitGameButton != null)
+        {
             quitGameButton.interactable = interactable;
+            Debug.Log($"Quit button interactable: {quitGameButton.interactable}");
+        }
     }
     
     private void ShowLoading(bool show)
@@ -379,7 +441,14 @@ public class MainMenuUI : MonoBehaviour
         if (MultiplayerManager.Instance != null && lobbyCodeDisplayText != null)
         {
             string lobbyCode = MultiplayerManager.Instance.GetCurrentLobbyCode();
-            lobbyCodeDisplayText.text = string.IsNullOrEmpty(lobbyCode) ? "No Code" : $"Code: {lobbyCode}";
+            if (string.IsNullOrEmpty(lobbyCode))
+            {
+                lobbyCodeDisplayText.text = LocalizationManager.Instance.GetLocalizedText("error_no_code");
+            }
+            else
+            {
+                lobbyCodeDisplayText.text = string.Format("{0}: {1}", LocalizationManager.Instance.GetLocalizedText("lobby_code_label"), lobbyCode);
+            }
         }
     }
     
@@ -394,11 +463,12 @@ public class MainMenuUI : MonoBehaviour
             
             if (playerNames == null || playerNames.Count == 0)
             {
-                playersListText.text = "No players";
+                playersListText.text = LocalizationManager.Instance.GetLocalizedText("error_no_players");
             }
             else
             {
-                playersListText.text = $"Oyuncular: ({playerNames.Count}/4):\n" + string.Join("\n", playerNames);
+                string playersLabel = string.Format("{0}: ({1}/4)", LocalizationManager.Instance.GetLocalizedText("players_list"), playerNames.Count);
+                playersListText.text = playersLabel + "\n" + string.Join("\n", playerNames);
             }
         }
     }
@@ -407,11 +477,21 @@ public class MainMenuUI : MonoBehaviour
     {
         if (readyButton != null && readyButtonText != null)
         {
-            readyButtonText.text = isReady ? "Hazır" : "Hazır Değil";
+            // Disable LocalizedText component if it exists to prevent interference
+            var localizedText = readyButtonText.GetComponent<LocalizedText>();
+            if (localizedText != null)
+            {
+                localizedText.enabled = false;
+            }
+            
+            // Show current status (what the player IS, not what clicking will do)
+            readyButtonText.text = isReady ? LocalizationManager.Instance.GetLocalizedText("menu_ready") : LocalizationManager.Instance.GetLocalizedText("menu_not_ready");
             
             var colors = readyButton.colors;
-            colors.normalColor = isReady ? Color.red : Color.green;
+            colors.normalColor = isReady ? Color.green : Color.red;
             readyButton.colors = colors;
+            
+            Debug.Log($"Ready button updated: isReady={isReady}, text='{readyButtonText.text}'");
         }
     }
     
@@ -436,7 +516,7 @@ public class MainMenuUI : MonoBehaviour
         if (MultiplayerManager.Instance != null)
         {
             MultiplayerManager.Instance.CopyLobbyCodeToClipboard();
-            UpdateStatusText("Lobi Kodu Kopyalandı!");
+            statusManager.ShowLobbyCodeCopied();
         }
     }
     
@@ -457,7 +537,7 @@ public class MainMenuUI : MonoBehaviour
         {
             if (readySystem != null && readySystem.AreAllPlayersReady())
             {
-                UpdateStatusText("Başlıyor...");
+                statusManager.ShowStarting();
                 
                 if (SceneTransitionManager.Instance != null)
                 {
@@ -466,12 +546,12 @@ public class MainMenuUI : MonoBehaviour
             }
             else
             {
-                UpdateStatusText("Hazır olmuyanlar var!");
+                statusManager.ShowPlayersNotReady();
             }
         }
         else
         {
-            UpdateStatusText("Sadece kurucu oyunu başlatabilir!");
+            statusManager.ShowOnlyHostCanStart();
         }
     }
     
@@ -479,7 +559,7 @@ public class MainMenuUI : MonoBehaviour
     {
         if (MultiplayerManager.Instance != null)
         {
-            UpdateStatusText("Lobiden çıkılıyor...");
+            statusManager.ShowLeavingLobby();
             await MultiplayerManager.Instance.LeaveLobby();
         }
     }

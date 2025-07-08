@@ -3,7 +3,8 @@
     "allow": [
       "Bash(find:*)",
       "WebFetch(domain:docs.unity.com)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
