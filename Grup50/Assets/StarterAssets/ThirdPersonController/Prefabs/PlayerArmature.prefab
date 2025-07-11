@@ -1422,6 +1422,12 @@ MonoBehaviour:
   invincibilityDuration: 1
   enableRespawn: 1
   disableOnDeath: 1
+  hurtSounds: []
+  deathSounds: []
+  healSounds: []
+  audioVolume: 1
+  enableAudio: 0
+  enableScreenShake: 1
 --- !u!1 &4523139366846529165
 GameObject:
   m_ObjectHideFlags: 0
