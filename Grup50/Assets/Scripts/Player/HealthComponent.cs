@@ -11,12 +11,24 @@ public class HealthComponent : NetworkBehaviour
     [SerializeField] private bool enableRespawn = true;
     [SerializeField] private bool disableOnDeath = true;
     
+    [Header("Audio Settings")]
+    [SerializeField] private AudioClip[] hurtSounds;
+    [SerializeField] private AudioClip[] deathSounds;
+    [SerializeField] private AudioClip[] healSounds;
+    [SerializeField] private float audioVolume = 1.0f;
+    [SerializeField] private bool enableAudio = true;
+    
+    [Header("Screen Shake Settings")]
+    [SerializeField] private bool enableScreenShake = true;
+    
     private NetworkVariable<float> currentHealth = new NetworkVariable<float>(100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private NetworkVariable<bool> isAlive = new NetworkVariable<bool>(true, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     
     private float lastDamageTime;
     private MonoBehaviour[] componentsToDisable;
     private Collider[] collidersToDisable;
+    private AudioSource audioSource;
+    private ScreenShakeManager screenShakeManager;
     
     public event Action<float, float> OnHealthChanged;
     public event Action OnDied;
@@ -30,6 +42,9 @@ public class HealthComponent : NetworkBehaviour
     {
         // Cache components that might need to be disabled on death
         CacheComponents();
+        
+        // Setup audio and screen shake
+        SetupAudioAndEffects();
         
         if (IsServer)
         {
@@ -71,6 +86,38 @@ public class HealthComponent : NetworkBehaviour
         
         componentsToDisable = componentsList.ToArray();
         collidersToDisable = collidersList.ToArray();
+    }
+    
+    private void SetupAudioAndEffects()
+    {
+        // Setup audio source
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+        
+        ConfigureAudioSource();
+        
+        // Setup screen shake manager
+        screenShakeManager = GetComponent<ScreenShakeManager>();
+        if (screenShakeManager == null)
+        {
+            screenShakeManager = gameObject.AddComponent<ScreenShakeManager>();
+        }
+        
+        // Sync settings
+        screenShakeManager.SetScreenShakeEnabled(enableScreenShake);
+    }
+    
+    private void ConfigureAudioSource()
+    {
+        audioSource.volume = audioVolume;
+        audioSource.playOnAwake = false;
+        audioSource.spatialBlend = 1.0f; // 3D sound
+        audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+        audioSource.maxDistance = 50f;
+        audioSource.minDistance = 1f;
     }
     
     private void OnHealthValueChanged(float previousValue, float newValue)
@@ -141,15 +188,39 @@ public class HealthComponent : NetworkBehaviour
     [ClientRpc]
     private void ShowDamageEffectClientRpc(float damage, ulong attackerId)
     {
-        Debug.Log($"[CLIENT] {gameObject.name} took {damage} damage from {attackerId} - Visual effect here");
-        // TODO: Add visual damage effects later (particle effects, screen shake, etc.)
+        Debug.Log($"[CLIENT] {gameObject.name} took {damage} damage from {attackerId}");
+        
+        // Play hurt sound
+        if (enableAudio && hurtSounds.Length > 0)
+        {
+            int randomIndex = UnityEngine.Random.Range(0, hurtSounds.Length);
+            PlayAudioClip(hurtSounds[randomIndex]);
+        }
+        
+        // Trigger screen shake (only for the owner/local player)
+        if (IsOwner && screenShakeManager != null)
+        {
+            screenShakeManager.TriggerDamageShake(damage);
+        }
     }
     
     [ClientRpc]
     private void ShowHealEffectClientRpc(float healAmount)
     {
-        Debug.Log($"[CLIENT] {gameObject.name} healed for {healAmount} - Visual effect here");
-        // TODO: Add visual heal effects later (particle effects, green numbers, etc.)
+        Debug.Log($"[CLIENT] {gameObject.name} healed for {healAmount}");
+        
+        // Play heal sound
+        if (enableAudio && healSounds.Length > 0)
+        {
+            int randomIndex = UnityEngine.Random.Range(0, healSounds.Length);
+            PlayAudioClip(healSounds[randomIndex]);
+        }
+        
+        // Trigger heal screen shake (only for the owner/local player)
+        if (IsOwner && screenShakeManager != null)
+        {
+            screenShakeManager.TriggerHealShake(healAmount);
+        }
     }
     
     private void HandleDeath()
@@ -158,6 +229,9 @@ public class HealthComponent : NetworkBehaviour
         
         isAlive.Value = false;
         Debug.Log($"[SERVER] {gameObject.name} died!");
+        
+        // Play death effects on all clients
+        ShowDeathEffectClientRpc();
         
         if (disableOnDeath)
         {
@@ -170,6 +244,25 @@ public class HealthComponent : NetworkBehaviour
             Debug.Log($"[SERVER] {gameObject.name} respawning in {respawnDelay} seconds...");
             // Schedule respawn
             Invoke(nameof(RespawnObject), respawnDelay);
+        }
+    }
+    
+    [ClientRpc]
+    private void ShowDeathEffectClientRpc()
+    {
+        Debug.Log($"[CLIENT] {gameObject.name} died!");
+        
+        // Play death sound
+        if (enableAudio && deathSounds.Length > 0)
+        {
+            int randomIndex = UnityEngine.Random.Range(0, deathSounds.Length);
+            PlayAudioClip(deathSounds[randomIndex]);
+        }
+        
+        // Trigger death screen shake (only for the owner/local player)
+        if (IsOwner && screenShakeManager != null)
+        {
+            screenShakeManager.TriggerDeathShake();
         }
     }
     
@@ -328,6 +421,47 @@ public class HealthComponent : NetworkBehaviour
     public void SetDisableOnDeath(bool disable)
     {
         disableOnDeath = disable;
+    }
+    
+    private void PlayAudioClip(AudioClip clip)
+    {
+        if (clip != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(clip, audioVolume);
+        }
+    }
+    
+    public void SetAudioEnabled(bool enabled)
+    {
+        enableAudio = enabled;
+    }
+    
+    public void SetAudioVolume(float volume)
+    {
+        audioVolume = Mathf.Clamp01(volume);
+        if (audioSource != null)
+        {
+            audioSource.volume = audioVolume;
+        }
+    }
+    
+    public void SetScreenShakeEnabled(bool enabled)
+    {
+        enableScreenShake = enabled;
+        if (screenShakeManager != null)
+        {
+            screenShakeManager.SetScreenShakeEnabled(enabled);
+        }
+    }
+    
+    public bool IsAudioEnabled()
+    {
+        return enableAudio;
+    }
+    
+    public bool IsScreenShakeEnabled()
+    {
+        return enableScreenShake;
     }
     
     // For debugging in Inspector
