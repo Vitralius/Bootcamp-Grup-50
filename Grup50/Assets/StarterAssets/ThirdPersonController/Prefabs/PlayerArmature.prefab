@@ -1167,7 +1167,11 @@ MonoBehaviour:
   EnableDoubleJump: 1
   MaxJumps: 3
   CrouchCameraOffset: 0.5
-  CameraLerpSpeed: 5
+  SprintCameraOffset: 0.2
+  CameraLerpSpeed: 1
+  SprintFOVIncrease: 5
+  EnableSprintScreenShake: 1
+  SprintShakeIntensity: 0.11
   ShowDebugInfo: 1
   DebugTextHeight: 0
   LandingAudioClip: {fileID: 8300000, guid: ff697d3070687ce4583faa0561a145a2, type: 3}
@@ -1428,6 +1432,11 @@ MonoBehaviour:
   audioVolume: 1
   enableAudio: 0
   enableScreenShake: 1
+  damageShakeIntensity: 2
+  deathShakeIntensity: 0
+  healShakeIntensity: 0.5
+  minShakeRange: 0.3
+  maxShakeRange: 1
 --- !u!1 &4523139366846529165
 GameObject:
   m_ObjectHideFlags: 0

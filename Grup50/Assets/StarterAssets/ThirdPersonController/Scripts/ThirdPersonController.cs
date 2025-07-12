@@ -80,8 +80,21 @@ namespace StarterAssets
         [Tooltip("How much to lower camera when crouching")]
         public float CrouchCameraOffset = 0.5f;
         
-        [Tooltip("Speed of camera transition when crouching/uncrouching")]
+        [Tooltip("How much to raise camera when sprinting")]
+        public float SprintCameraOffset = 0.3f;
+        
+        [Tooltip("Speed of camera transition when crouching/uncrouching/sprinting")]
         public float CameraLerpSpeed = 5f;
+        
+        [Tooltip("FOV increase when sprinting")]
+        public float SprintFOVIncrease = 10f;
+        
+        [Tooltip("Enable sprint screen shake")]
+        public bool EnableSprintScreenShake = true;
+        
+        [Tooltip("Sprint screen shake intensity")]
+        [Range(0f, 1f)]
+        public float SprintShakeIntensity = 0.3f;
 
         [Space(10)]
         [Header("Debug")]
@@ -90,6 +103,10 @@ namespace StarterAssets
         
         [Tooltip("Height offset for debug text above character")]
         public float DebugTextHeight = 2.5f;
+        
+        [Header("Death Settings")]
+        [Tooltip("Is the character currently dead")]
+        [SerializeField] private bool isDead = false;
 
         public AudioClip LandingAudioClip;
         public AudioClip[] FootstepAudioClips;
@@ -197,6 +214,14 @@ namespace StarterAssets
         // camera variables
         private float _originalCameraTargetY;
         private float _targetCameraY;
+        private float _originalFOV;
+        private float _targetFOV;
+        private CinemachineCamera _virtualCamera;
+        private ScreenShakeManager _screenShakeManager;
+        
+        // sprint variables
+        private bool _isSprinting;
+        private bool _wasSprintingLastFrame;
 
         private bool IsCurrentDeviceMouse
         {
@@ -241,11 +266,22 @@ namespace StarterAssets
                 _mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponentInChildren<Camera>();
                 
                 // Set up Cinemachine camera to follow this player
-                var virtualCamera = GameObject.FindFirstObjectByType<CinemachineCamera>();
-                if (virtualCamera != null)
+                _virtualCamera = GameObject.FindFirstObjectByType<CinemachineCamera>();
+                if (_virtualCamera != null)
                 {
-                    virtualCamera.Follow = CinemachineCameraTarget.transform;
-                    virtualCamera.LookAt = CinemachineCameraTarget.transform;
+                    _virtualCamera.Follow = CinemachineCameraTarget.transform;
+                    _virtualCamera.LookAt = CinemachineCameraTarget.transform;
+                    
+                    // Store original FOV
+                    _originalFOV = _virtualCamera.Lens.FieldOfView;
+                    _targetFOV = _originalFOV;
+                }
+                
+                // Get screen shake manager
+                _screenShakeManager = GetComponent<ScreenShakeManager>();
+                if (_screenShakeManager == null)
+                {
+                    _screenShakeManager = gameObject.AddComponent<ScreenShakeManager>();
                 }
                 
                 // Lock and hide cursor for local player
@@ -273,7 +309,53 @@ namespace StarterAssets
         {
 
         }
-
+        
+        private void Start()
+        {
+            // Subscribe to health component death events
+            HealthComponent healthComponent = GetComponent<HealthComponent>();
+            if (healthComponent != null)
+            {
+                healthComponent.OnDied += OnDead;
+                healthComponent.OnRevived += OnRevived;
+            }
+        }
+        
+        /// <summary>
+        /// Called when the character dies. Disables movement input but keeps gravity and camera.
+        /// </summary>
+        public void OnDead()
+        {
+            isDead = true;
+            Debug.Log($"[ThirdPersonController] Character died - CharacterController enabled: {_controller?.enabled}");
+            
+            // Log every frame for 3 seconds to see if something disables it
+            InvokeRepeating(nameof(DebugCharacterControllerState), 0f, 0.1f);
+            Invoke(nameof(StopDebugLogging), 3f);
+        }
+        
+        private void DebugCharacterControllerState()
+        {
+            if (_controller != null)
+            {
+                Debug.Log($"[DEBUG] CharacterController enabled: {_controller.enabled}, isDead: {isDead}");
+            }
+        }
+        
+        private void StopDebugLogging()
+        {
+            CancelInvoke(nameof(DebugCharacterControllerState));
+        }
+        
+        /// <summary>
+        /// Called when the character is revived. Re-enables movement.
+        /// </summary>
+        public void OnRevived()
+        {
+            isDead = false;
+            Debug.Log("[ThirdPersonController] Character revived - movement re-enabled");
+        }
+        
         private void Update()
         {
             if (!IsOwner)
@@ -282,7 +364,7 @@ namespace StarterAssets
             if(!_hasAnimator)
                 _hasAnimator = TryGetComponent(out _animator);
 
-            // Handle menu toggle
+            // Handle menu toggle (always allowed)
             if (_input.menu)
             {
                 _input.menu = false; // Reset the input
@@ -328,6 +410,12 @@ namespace StarterAssets
 
         private void HandleCrouchingAndSliding()
         {
+            // Don't process crouch/slide input when dead
+            if (isDead)
+            {
+                return;
+            }
+            
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
             
             // Handle air-to-slide transition tracking
@@ -423,6 +511,7 @@ namespace StarterAssets
             
             // Stop sprinting when crouching
             _input.sprint = false;
+            _isSprinting = false;
             
             // Adjust character controller
             _controller.height = _originalHeight * 0.5f;
@@ -430,6 +519,9 @@ namespace StarterAssets
             
             // Set target camera position for crouching
             _targetCameraY = _originalCameraTargetY - CrouchCameraOffset;
+            
+            // Reset FOV when crouching (cancel sprint FOV)
+            _targetFOV = _originalFOV;
             
             // Update animation
             if (_hasAnimator)
@@ -466,6 +558,75 @@ namespace StarterAssets
             Vector3 currentPos = CinemachineCameraTarget.transform.localPosition;
             float newY = Mathf.Lerp(currentPos.y, _targetCameraY, CameraLerpSpeed * Time.deltaTime);
             CinemachineCameraTarget.transform.localPosition = new Vector3(currentPos.x, newY, currentPos.z);
+            
+            // Smooth FOV transition
+            if (_virtualCamera != null)
+            {
+                var lens = _virtualCamera.Lens;
+                lens.FieldOfView = Mathf.Lerp(lens.FieldOfView, _targetFOV, CameraLerpSpeed * Time.deltaTime);
+                _virtualCamera.Lens = lens;
+            }
+        }
+        
+        private void HandleSprintEffects()
+        {
+            if (!IsOwner) return;
+            
+            // Determine if currently sprinting (moving and sprint key pressed, not crouching)
+            bool isSprintingNow = _input.sprint && _input.move != Vector2.zero && !_isCrouching;
+            
+            // Check if sprint state changed
+            if (isSprintingNow != _isSprinting)
+            {
+                _isSprinting = isSprintingNow;
+                
+                if (_isSprinting)
+                {
+                    // Start sprinting effects
+                    StartSprintEffects();
+                }
+                else
+                {
+                    // Stop sprinting effects
+                    StopSprintEffects();
+                }
+            }
+            
+            // Handle continuous sprint screen shake
+            if (_isSprinting && EnableSprintScreenShake && _screenShakeManager != null)
+            {
+                // Trigger subtle continuous shake while sprinting
+                _screenShakeManager.TriggerSprintShake(SprintShakeIntensity);
+            }
+        }
+        
+        private void StartSprintEffects()
+        {
+            if (!IsOwner) return;
+            
+            // Adjust camera position (raise camera slightly)
+            _targetCameraY = _originalCameraTargetY + SprintCameraOffset;
+            
+            // Increase FOV
+            _targetFOV = _originalFOV + SprintFOVIncrease;
+        }
+        
+        private void StopSprintEffects()
+        {
+            if (!IsOwner) return;
+            
+            // Reset camera position to original or crouch position
+            if (_isCrouching)
+            {
+                _targetCameraY = _originalCameraTargetY - CrouchCameraOffset;
+            }
+            else
+            {
+                _targetCameraY = _originalCameraTargetY;
+            }
+            
+            // Reset FOV
+            _targetFOV = _originalFOV;
         }
         
         private bool CanUncrouch()
@@ -614,6 +775,13 @@ namespace StarterAssets
 
         private void Move()
         {
+            // When dead, only apply vertical velocity (gravity) but no horizontal movement
+            if (isDead)
+            {
+                _controller.Move(new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+                return;
+            }
+            
             // Handle sliding movement separately
             if (_isSliding)
             {
@@ -629,6 +797,9 @@ namespace StarterAssets
             {
                 targetSpeed *= CrouchSpeedMultiplier;
             }
+            
+            // Handle sprint effects
+            HandleSprintEffects();
 
             // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
@@ -779,7 +950,7 @@ namespace StarterAssets
                 }
 
                 // Jump
-                if (_input.jump && _jumpTimeoutDelta <= 0.0f)
+                if (_input.jump && _jumpTimeoutDelta <= 0.0f &&  !isDead)
                 {
                     // Handle jump from slide
                     if (_isSliding)
@@ -842,7 +1013,7 @@ namespace StarterAssets
                 }
 
                 // Handle double jump when not grounded
-                if (_input.jump && EnableDoubleJump && _jumpCount < MaxJumps)
+                if (_input.jump && EnableDoubleJump && _jumpCount < MaxJumps && !isDead)
                 {
                     PerformJump();
                 }
@@ -984,6 +1155,14 @@ namespace StarterAssets
         private string GetCharacterStateString()
         {
             List<string> states = new List<string>();
+            
+            // Check death state first
+            HealthComponent healthComponent = GetComponent<HealthComponent>();
+            if (healthComponent != null && !healthComponent.IsAlive)
+            {
+                states.Add("DEAD");
+                return string.Join(" | ", states);
+            }
             
             if (!Grounded)
                 states.Add("AIR");
