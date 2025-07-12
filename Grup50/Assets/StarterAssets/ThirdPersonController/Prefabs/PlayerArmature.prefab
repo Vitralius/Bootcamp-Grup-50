@@ -1040,6 +1040,7 @@ GameObject:
   - component: {fileID: 4416926081852918493}
   - component: {fileID: 502622164957275622}
   - component: {fileID: 2446235274325356729}
+  - component: {fileID: 8596344876199425207}
   m_Layer: 8
   m_Name: PlayerArmature
   m_TagString: Player
@@ -1166,7 +1167,11 @@ MonoBehaviour:
   EnableDoubleJump: 1
   MaxJumps: 3
   CrouchCameraOffset: 0.5
-  CameraLerpSpeed: 5
+  SprintCameraOffset: 0.2
+  CameraLerpSpeed: 1
+  SprintFOVIncrease: 5
+  EnableSprintScreenShake: 1
+  SprintShakeIntensity: 0.11
   ShowDebugInfo: 1
   DebugTextHeight: 0
   LandingAudioClip: {fileID: 8300000, guid: ff697d3070687ce4583faa0561a145a2, type: 3}
@@ -1403,6 +1408,35 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   TransitionStateInfoList: []
   m_Animator: {fileID: 6982812146204527121}
+--- !u!114 &8596344876199425207
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4416926081852918481}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f64e3666fb219674bad7a485c3651d52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  maxHealth: 100
+  respawnDelay: 3
+  invincibilityDuration: 1
+  enableRespawn: 1
+  disableOnDeath: 1
+  hurtSounds: []
+  deathSounds: []
+  healSounds: []
+  audioVolume: 1
+  enableAudio: 0
+  enableScreenShake: 1
+  damageShakeIntensity: 2
+  deathShakeIntensity: 0
+  healShakeIntensity: 0.5
+  minShakeRange: 0.3
+  maxShakeRange: 1
 --- !u!1 &4523139366846529165
 GameObject:
   m_ObjectHideFlags: 0
