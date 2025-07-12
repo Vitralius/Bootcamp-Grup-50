@@ -10,6 +10,7 @@ public class HealthComponent : NetworkBehaviour
     [SerializeField] private float invincibilityDuration = 1f;
     [SerializeField] private bool enableRespawn = true;
     [SerializeField] private bool disableOnDeath = true;
+    [SerializeField] private bool keepDebugOnDeath = true;
     
     [Header("Audio Settings")]
     [SerializeField] private AudioClip[] hurtSounds;
@@ -20,6 +21,13 @@ public class HealthComponent : NetworkBehaviour
     
     [Header("Screen Shake Settings")]
     [SerializeField] private bool enableScreenShake = true;
+    [SerializeField] private float damageShakeIntensity = 1.0f;
+    [SerializeField] private float deathShakeIntensity = 2.0f;
+    [SerializeField] private float healShakeIntensity = 0.5f;
+    
+    [Header("Shake Range Settings")]
+    [SerializeField] private float minShakeRange = 0.3f;
+    [SerializeField] private float maxShakeRange = 1.0f;
     
     private NetworkVariable<float> currentHealth = new NetworkVariable<float>(100f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     private NetworkVariable<bool> isAlive = new NetworkVariable<bool>(true, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -76,9 +84,9 @@ public class HealthComponent : NetworkBehaviour
         var componentsList = new System.Collections.Generic.List<MonoBehaviour>();
         var collidersList = new System.Collections.Generic.List<Collider>();
         
-        // Add ThirdPersonController if it exists
+        // Add ThirdPersonController if it exists (unless keepDebugOnDeath is true)
         var thirdPersonController = GetComponent<StarterAssets.ThirdPersonController>();
-        if (thirdPersonController != null)
+        if (thirdPersonController != null && !keepDebugOnDeath)
             componentsList.Add(thirdPersonController);
         
         // Add all colliders
@@ -108,6 +116,7 @@ public class HealthComponent : NetworkBehaviour
         
         // Sync settings
         screenShakeManager.SetScreenShakeEnabled(enableScreenShake);
+        screenShakeManager.SetShakeRange(minShakeRange, maxShakeRange);
     }
     
     private void ConfigureAudioSource()
@@ -200,7 +209,7 @@ public class HealthComponent : NetworkBehaviour
         // Trigger screen shake (only for the owner/local player)
         if (IsOwner && screenShakeManager != null)
         {
-            screenShakeManager.TriggerDamageShake(damage);
+            screenShakeManager.TriggerDamageShake(damage, damageShakeIntensity);
         }
     }
     
@@ -219,7 +228,7 @@ public class HealthComponent : NetworkBehaviour
         // Trigger heal screen shake (only for the owner/local player)
         if (IsOwner && screenShakeManager != null)
         {
-            screenShakeManager.TriggerHealShake(healAmount);
+            screenShakeManager.TriggerHealShake(healAmount, healShakeIntensity);
         }
     }
     
@@ -262,7 +271,7 @@ public class HealthComponent : NetworkBehaviour
         // Trigger death screen shake (only for the owner/local player)
         if (IsOwner && screenShakeManager != null)
         {
-            screenShakeManager.TriggerDeathShake();
+            screenShakeManager.TriggerDeathShake(deathShakeIntensity);
         }
     }
     
@@ -271,39 +280,7 @@ public class HealthComponent : NetworkBehaviour
     {
         Debug.Log($"[CLIENT] {gameObject.name} disabled due to death");
         
-        // Disable cached MonoBehaviour components
-        foreach (var component in componentsToDisable)
-        {
-            if (component != null)
-            {
-                component.enabled = false;
-            }
-        }
-        
-        // Disable CharacterController separately
-        var characterController = GetComponent<CharacterController>();
-        if (characterController != null)
-        {
-            characterController.enabled = false;
-        }
-        
-        // Disable Rigidbody separately (freeze it)
-        var rigidbody = GetComponent<Rigidbody>();
-        if (rigidbody != null)
-        {
-            rigidbody.isKinematic = true;
-        }
-        
-        // Disable colliders
-        foreach (var collider in collidersToDisable)
-        {
-            if (collider != null)
-            {
-                collider.enabled = false;
-            }
-        }
-        
-        // TODO: Hide object, show death effect
+        // TODO: Hide object, show death effect // or do it in the event in specific object
         
         if (IsOwner)
         {
@@ -330,39 +307,8 @@ public class HealthComponent : NetworkBehaviour
     {
         Debug.Log($"[CLIENT] {gameObject.name} enabled after respawn");
         
-        // Re-enable cached MonoBehaviour components
-        foreach (var component in componentsToDisable)
-        {
-            if (component != null)
-            {
-                component.enabled = true;
-            }
-        }
         
-        // Re-enable CharacterController separately
-        var characterController = GetComponent<CharacterController>();
-        if (characterController != null)
-        {
-            characterController.enabled = true;
-        }
-        
-        // Re-enable Rigidbody separately (unfreeze it)
-        var rigidbody = GetComponent<Rigidbody>();
-        if (rigidbody != null)
-        {
-            rigidbody.isKinematic = false;
-        }
-        
-        // Re-enable colliders
-        foreach (var collider in collidersToDisable)
-        {
-            if (collider != null)
-            {
-                collider.enabled = true;
-            }
-        }
-        
-        // TODO: Show object, play respawn effect
+        // TODO: Show object, play respawn effect // or do it in the event in specific object
         
         if (IsOwner)
         {
@@ -462,6 +408,57 @@ public class HealthComponent : NetworkBehaviour
     public bool IsScreenShakeEnabled()
     {
         return enableScreenShake;
+    }
+    
+    public void SetDamageShakeIntensity(float intensity)
+    {
+        damageShakeIntensity = Mathf.Max(0f, intensity);
+    }
+    
+    public void SetDeathShakeIntensity(float intensity)
+    {
+        deathShakeIntensity = Mathf.Max(0f, intensity);
+    }
+    
+    public void SetHealShakeIntensity(float intensity)
+    {
+        healShakeIntensity = Mathf.Max(0f, intensity);
+    }
+    
+    public float GetDamageShakeIntensity()
+    {
+        return damageShakeIntensity;
+    }
+    
+    public float GetDeathShakeIntensity()
+    {
+        return deathShakeIntensity;
+    }
+    
+    public float GetHealShakeIntensity()
+    {
+        return healShakeIntensity;
+    }
+    
+    public void SetShakeRange(float minRange, float maxRange)
+    {
+        minShakeRange = Mathf.Max(0f, minRange);
+        maxShakeRange = Mathf.Max(minShakeRange, maxRange);
+        
+        if (screenShakeManager != null)
+        {
+            screenShakeManager.SetShakeRange(minShakeRange, maxShakeRange);
+        }
+    }
+    
+    public float GetMinShakeRange()
+    {
+        return minShakeRange;
+    }
+    
+    public float GetMaxShakeRange()
+    {
+        return maxShakeRange;
     }
     
     // For debugging in Inspector
