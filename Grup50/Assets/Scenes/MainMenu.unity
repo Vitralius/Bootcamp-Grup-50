@@ -396,8 +396,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -538,10 +538,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Lobi Olu\u015Ftur\n"
+  m_text: "Lobi Olu\u015Ftur"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -780,7 +780,6 @@ GameObject:
   - component: {fileID: 158993918}
   - component: {fileID: 158993917}
   - component: {fileID: 158993919}
-  - component: {fileID: 158993920}
   m_Layer: 5
   m_Name: JoinSessionButton
   m_TagString: Untagged
@@ -902,21 +901,6 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
---- !u!114 &158993920
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 158993915}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4a1808479db9109489e7cfe77eb76d7e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  localizationKey: menu_join_lobby
-  useStringFormat: 0
-  isDynamicContent: 0
 --- !u!1 &217026241
 GameObject:
   m_ObjectHideFlags: 0
@@ -977,8 +961,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Lobiden \xC7\u0131k\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -1131,8 +1115,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -1285,8 +1269,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -1682,8 +1666,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "G\xF6lgelerin Tac\u0131\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2058,8 +2042,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Oyundan \xC7\u0131k\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2779,8 +2763,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2931,8 +2915,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Ba\u015Flat\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -3526,8 +3510,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -3811,8 +3795,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "\u200B"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -4391,8 +4375,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Kat\u0131l\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -4684,8 +4668,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Haz\u0131r\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -4828,8 +4812,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Lobi'ye Kat\u0131l\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -4980,8 +4964,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "Haz\u0131r\n"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 9e91404786b6e59498834a4981c87297, type: 2}
+  m_sharedMaterial: {fileID: -6520064860502535802, guid: 9e91404786b6e59498834a4981c87297, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
