@@ -897,7 +897,7 @@ MonoBehaviour:
   - {fileID: 1836798117}
   - {fileID: 1422633008}
   defaultSpawnPosition: {x: 0, y: 5, z: 0}
-  playerPrefab: {fileID: 4416926081852918481, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
+  playerPrefab: {fileID: 4416926081852918481, guid: 4e7c61cd8d7074a4892e113e5888e8a2, type: 3}
 --- !u!4 &790433991
 Transform:
   m_ObjectHideFlags: 0
@@ -3284,9 +3284,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8379900264220769560, guid: 09aade0ecefd01e4b8f7661acf64f5c2, type: 3}
       insertIndex: 9
       addedObject: {fileID: 1396203174}
-    - targetCorrespondingSourceObject: {fileID: 8379900264220769560, guid: 09aade0ecefd01e4b8f7661acf64f5c2, type: 3}
-      insertIndex: 25
-      addedObject: {fileID: 66360775}
     - targetCorrespondingSourceObject: {fileID: 8379900264220769560, guid: 09aade0ecefd01e4b8f7661acf64f5c2, type: 3}
       insertIndex: 30
       addedObject: {fileID: 779641386}
