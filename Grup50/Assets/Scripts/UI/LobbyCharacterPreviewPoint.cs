@@ -7,6 +7,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     [Header("Preview Settings")]
     [SerializeField] private Transform characterSpawnPoint;
     [SerializeField] private GameObject baseCharacterPrefab;
+    [SerializeField] private GameObject existingCharacterPreview; // Use existing preview instead of instantiating
     [SerializeField] private bool isLocalPlayerPreview = false;
     [SerializeField] private int previewPointIndex = 0;
     
@@ -73,97 +74,155 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         
         isInitialized = true;
         
-        Debug.Log($"[PREVIEW-{previewPointIndex}] Initialized. isLocalPlayerPreview: {isLocalPlayerPreview}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] ✅ Initialized. isLocalPlayerPreview: {isLocalPlayerPreview}, GameObject: {gameObject.name}");
         
         // Only assign players if this is a local player preview
         if (isLocalPlayerPreview)
         {
             // Local player preview should show immediately when local player is ready
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Local preview waiting for local player session...");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🏠 LOCAL preview waiting for local player session...");
             Invoke(nameof(TryAssignLocalPlayer), 0.5f);
         }
         else
         {
             // Other player previews start hidden and wait for actual players to join
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Other preview waiting for other players...");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 👥 OTHER preview waiting for other players...");
             // Don't do any automatic assignment - wait for events
         }
     }
     
     private void CreatePreviewCharacter()
     {
-        if (baseCharacterPrefab == null)
+        // First, try to use existing character preview if assigned
+        if (existingCharacterPreview != null)
         {
-            Debug.LogError("Base character prefab not assigned!");
-            return;
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Using existing character preview: {existingCharacterPreview.name}");
+            currentCharacterPreview = existingCharacterPreview;
         }
-        
-        // Destroy existing preview if any
-        if (currentCharacterPreview != null)
+        else if (baseCharacterPrefab != null)
         {
-            DestroyImmediate(currentCharacterPreview);
-        }
-        
-        // Instantiate base character at spawn point
-        Transform spawnTransform = characterSpawnPoint != null ? characterSpawnPoint : transform;
-        currentCharacterPreview = Instantiate(baseCharacterPrefab, spawnTransform.position, spawnTransform.rotation, transform);
-        
-        // Remove any network components from preview (it's just visual)
-        var networkComponents = currentCharacterPreview.GetComponentsInChildren<NetworkBehaviour>();
-        foreach (var netComp in networkComponents)
-        {
-            DestroyImmediate(netComp);
-        }
-        
-        var networkObject = currentCharacterPreview.GetComponent<NetworkObject>();
-        if (networkObject != null)
-        {
-            DestroyImmediate(networkObject);
-        }
-        
-        // Disable movement components (preview should be static)
-        var controller = currentCharacterPreview.GetComponent<CharacterController>();
-        if (controller != null)
-        {
-            controller.enabled = false;
-        }
-        
-        // Remove any movement scripts to keep it simple
-        var movementScripts = currentCharacterPreview.GetComponents<MonoBehaviour>();
-        foreach (var script in movementScripts)
-        {
-            if (script.GetType().Name.Contains("Controller") || script.GetType().Name.Contains("Movement"))
+            // Only instantiate if no existing preview is assigned
+            Debug.Log($"[PREVIEW-{previewPointIndex}] No existing preview assigned, instantiating from prefab");
+            
+            // Destroy existing preview if any
+            if (currentCharacterPreview != null && currentCharacterPreview != existingCharacterPreview)
             {
-                script.enabled = false;
+                DestroyImmediate(currentCharacterPreview);
             }
+            
+            // Instantiate base character at spawn point
+            Transform spawnTransform = characterSpawnPoint != null ? characterSpawnPoint : transform;
+            currentCharacterPreview = Instantiate(baseCharacterPrefab, spawnTransform.position, spawnTransform.rotation, transform);
+            
+            // Remove any network components from preview (it's just visual)
+            var networkComponents = currentCharacterPreview.GetComponentsInChildren<NetworkBehaviour>();
+            foreach (var netComp in networkComponents)
+            {
+                DestroyImmediate(netComp);
+            }
+            
+            var networkObject = currentCharacterPreview.GetComponent<NetworkObject>();
+            if (networkObject != null)
+            {
+                DestroyImmediate(networkObject);
+            }
+            
+            // Disable movement components (preview should be static)
+            var controller = currentCharacterPreview.GetComponent<CharacterController>();
+            if (controller != null)
+            {
+                controller.enabled = false;
+            }
+            
+            // Remove any movement scripts to keep it simple (but preserve PreviewCharacterLoader)
+            var movementScripts = currentCharacterPreview.GetComponents<MonoBehaviour>();
+            foreach (var script in movementScripts)
+            {
+                if (script.GetType().Name.Contains("Controller") || script.GetType().Name.Contains("Movement"))
+                {
+                    // Don't disable PreviewCharacterLoader - we need it!
+                    if (script.GetType() != typeof(PreviewCharacterLoader))
+                    {
+                        script.enabled = false;
+                    }
+                }
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PREVIEW-{previewPointIndex}] No character preview assigned and no base prefab available!");
+            return;
         }
         
         // Get or add PreviewCharacterLoader
         previewCharacterLoader = currentCharacterPreview.GetComponent<PreviewCharacterLoader>();
         if (previewCharacterLoader == null)
         {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] PreviewCharacterLoader not found, adding new one");
             previewCharacterLoader = currentCharacterPreview.AddComponent<PreviewCharacterLoader>();
         }
+        else
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Found existing PreviewCharacterLoader");
+        }
         
-        Debug.Log($"Created character preview at point {previewPointIndex}");
+        // Debug the component structure
+        var allRenderers = currentCharacterPreview.GetComponentsInChildren<Renderer>();
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Found {allRenderers.Length} renderers in character preview:");
+        foreach (var renderer in allRenderers)
+        {
+            Debug.Log($"  - {renderer.GetType().Name}: {renderer.name} (enabled: {renderer.enabled})");
+        }
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Character preview setup complete: {currentCharacterPreview.name}");
     }
     
     private void TryAssignLocalPlayer()
     {
         if (!isLocalPlayerPreview || !isInitialized || playerSessionData == null)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] TryAssignLocalPlayer failed - isLocal: {isLocalPlayerPreview}, init: {isInitialized}, sessionData: {playerSessionData != null}");
             return;
+        }
             
-        Debug.Log($"[PREVIEW-{previewPointIndex}] Trying to assign local player...");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🔍 TryAssignLocalPlayer: Attempting to get current player session...");
         
         var currentSession = playerSessionData.GetCurrentPlayerSession();
         if (currentSession.HasValue)
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Found local player session, assigning...");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] ✅ Found local player session: {currentSession.Value.playerId}");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🎯 Player Name: {currentSession.Value.playerName}");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🎮 Character ID: {currentSession.Value.selectedCharacterId}");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🔌 Is Connected: {currentSession.Value.isConnected}");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] ✓ Is Ready: {currentSession.Value.isReady}");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 📞 Calling AssignPlayerToPreviewPoint()...");
             AssignPlayerToPreviewPoint();
         }
         else
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] No local player session yet, retrying in 1s...");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] ❌ GetCurrentPlayerSession() returned null");
+            
+            // Try to debug why it's null
+            try
+            {
+                string currentPlayerId = Unity.Services.Authentication.AuthenticationService.Instance.PlayerId;
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🔍 Current PlayerId from AuthService: {currentPlayerId}");
+                
+                var allSessions = playerSessionData.GetConnectedPlayerSessions();
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🔍 Total connected sessions: {allSessions.Count}");
+                
+                for (int i = 0; i < allSessions.Count; i++)
+                {
+                    var session = allSessions[i];
+                    Debug.Log($"[PREVIEW-{previewPointIndex}] 📋 Session {i}: {session.playerId} ({session.playerName})");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ Error during debug check: {e.Message}");
+            }
+            
+            Debug.Log($"[PREVIEW-{previewPointIndex}] ⏰ No local player session yet, retrying in 1s...");
             Invoke(nameof(TryAssignLocalPlayer), 1f);
         }
     }
@@ -221,28 +280,71 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     
     private void AssignPlayerToPreviewPoint()
     {
-        if (playerSessionData == null || !isInitialized) return;
+        if (playerSessionData == null || !isInitialized) 
+        {
+            Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ AssignPlayerToPreviewPoint failed - sessionData: {playerSessionData != null}, init: {isInitialized}");
+            return;
+        }
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🚀 AssignPlayerToPreviewPoint started");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🎯 Current assignedPlayerGuid: '{assignedPlayerGuid}'");
         
         // Clear previous assignment
+        string previousAssignment = assignedPlayerGuid;
         assignedPlayerGuid = null;
         SetPreviewVisible(false);
         
-        Debug.Log($"[PREVIEW-{previewPointIndex}] Assigning player. isLocalPlayerPreview: {isLocalPlayerPreview}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🧹 Cleared previous assignment (was: '{previousAssignment}'). isLocalPlayerPreview: {isLocalPlayerPreview}");
         
         if (isLocalPlayerPreview)
         {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🏠 Processing LOCAL player preview...");
+            
             // This preview point shows the local player ONLY
             var currentSession = playerSessionData.GetCurrentPlayerSession();
             if (currentSession.HasValue)
             {
-                assignedPlayerGuid = currentSession.Value.playerId.ToString();
+                string newGuid = currentSession.Value.playerId.ToString().Trim();
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🎯 Setting assignedPlayerGuid to: '{newGuid}'");
+                
+                assignedPlayerGuid = newGuid;
+                
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 📞 Calling UpdatePreviewForPlayer...");
                 UpdatePreviewForPlayer(currentSession.Value);
+                
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 👁️ Setting preview visible to true...");
                 SetPreviewVisible(true);
-                Debug.Log($"[PREVIEW-{previewPointIndex}] ✓ Assigned LOCAL player {assignedPlayerGuid}");
+                
+                Debug.Log($"[PREVIEW-{previewPointIndex}] ✅ SUCCESS: Assigned LOCAL player {assignedPlayerGuid}");
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🔍 Final check - assignedPlayerGuid: '{assignedPlayerGuid}'");
+                
+                // Verify assignment worked
+                if (string.IsNullOrEmpty(assignedPlayerGuid))
+                {
+                    Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ ASSIGNMENT FAILED: assignedPlayerGuid is null/empty after assignment!");
+                }
             }
             else
             {
-                Debug.Log($"[PREVIEW-{previewPointIndex}] ✗ No local player session found");
+                Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ No local player session found in AssignPlayerToPreviewPoint");
+                // Try to debug why it's null
+                try
+                {
+                    string currentPlayerId = Unity.Services.Authentication.AuthenticationService.Instance.PlayerId;
+                    Debug.LogError($"[PREVIEW-{previewPointIndex}] 🔍 Current player ID from auth: '{currentPlayerId}'");
+                    
+                    var allSessions = playerSessionData.GetConnectedPlayerSessions();
+                    Debug.LogError($"[PREVIEW-{previewPointIndex}] 🔍 Total sessions available: {allSessions.Count}");
+                    
+                    foreach (var session in allSessions)
+                    {
+                        Debug.LogError($"[PREVIEW-{previewPointIndex}] 🔍 Session: {session.playerId} ({session.playerName})");
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ Exception during debugging: {e.Message}");
+                }
             }
         }
         else
@@ -258,11 +360,11 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             
             if (localSession.HasValue)
             {
-                string localPlayerId = localSession.Value.playerId.ToString();
+                string localPlayerId = localSession.Value.playerId.ToString().Trim();
                 
                 foreach (var session in allSessions)
                 {
-                    string sessionPlayerId = session.playerId.ToString();
+                    string sessionPlayerId = session.playerId.ToString().Trim();
                     
                     if (sessionPlayerId != localPlayerId)
                     {
@@ -282,7 +384,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             if (otherPlayerSessions.Count > 0 && previewPointIndex < otherPlayerSessions.Count)
             {
                 var targetSession = otherPlayerSessions[previewPointIndex];
-                assignedPlayerGuid = targetSession.playerId.ToString();
+                assignedPlayerGuid = targetSession.playerId.ToString().Trim();
                 UpdatePreviewForPlayer(targetSession);
                 SetPreviewVisible(true);
                 Debug.Log($"[PREVIEW-{previewPointIndex}] ✓ Assigned OTHER player {assignedPlayerGuid}");
@@ -329,13 +431,15 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         // Load character data using PreviewCharacterLoader
         if (CharacterRegistry.Instance != null)
         {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Loading character {playerInfo.selectedCharacterId} for player {playerInfo.playerName}");
             previewCharacterLoader.LoadCharacterByID(playerInfo.selectedCharacterId);
         }
         else
         {
-            Debug.LogWarning("CharacterRegistry not found, cannot load character preview");
+            Debug.LogWarning($"[PREVIEW-{previewPointIndex}] CharacterRegistry not found, cannot load character preview");
             // Still try to show something
-            previewCharacterLoader.ResetToDefault();
+            if (previewCharacterLoader != null)
+                previewCharacterLoader.ResetToDefault();
         }
         
         Debug.Log($"Updated preview point {previewPointIndex} for player {playerInfo.playerName} with character {playerInfo.selectedCharacterId}");
@@ -405,12 +509,61 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     
     private void OnPlayerCharacterChanged(string playerGuid, int characterId)
     {
-        Debug.Log($"Preview point {previewPointIndex}: Character changed for player {playerGuid} to character {characterId}. Assigned player: {assignedPlayerGuid}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🎮 CHARACTER CHANGED EVENT:");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🎯 Event player GUID: '{playerGuid}'");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🆔 Character ID: {characterId}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🔗 Our assigned player: '{assignedPlayerGuid ?? "none"}'");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🏠 Is local preview: {isLocalPlayerPreview}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🎲 Preview point index: {previewPointIndex}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] 🔢 String comparison: '{playerGuid}' == '{assignedPlayerGuid}' = {playerGuid == assignedPlayerGuid}");
         
-        if (playerGuid == assignedPlayerGuid && previewCharacterLoader != null)
+        // Additional debugging for GUID comparison
+        if (!string.IsNullOrEmpty(playerGuid) && !string.IsNullOrEmpty(assignedPlayerGuid))
         {
-            Debug.Log($"Preview point {previewPointIndex}: Loading character {characterId} for assigned player");
-            previewCharacterLoader.LoadCharacterByID(characterId);
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🔍 GUID Length check: Event={playerGuid.Length}, Assigned={assignedPlayerGuid.Length}");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 🔍 GUID Trim check: Event='{playerGuid.Trim()}', Assigned='{assignedPlayerGuid.Trim()}'");
+        }
+        
+        // Use trimmed string comparison to avoid whitespace issues
+        bool isMatch = !string.IsNullOrEmpty(playerGuid) && !string.IsNullOrEmpty(assignedPlayerGuid) && 
+                      playerGuid.Trim() == assignedPlayerGuid.Trim();
+        
+        if (isMatch)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] ✅ MATCH! This character change is for us!");
+            
+            if (previewCharacterLoader != null)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🔄 Loading character {characterId} for assigned player");
+                previewCharacterLoader.LoadCharacterByID(characterId);
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🎯 Character loading completed");
+                
+                // Force visibility update
+                if (currentPlayerInfo.HasValue)
+                {
+                    var updatedInfo = currentPlayerInfo.Value;
+                    updatedInfo.selectedCharacterId = characterId;
+                    currentPlayerInfo = updatedInfo;
+                    SetPreviewVisible(true);
+                }
+            }
+            else
+            {
+                Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ PreviewCharacterLoader is null!");
+                Debug.LogError($"[PREVIEW-{previewPointIndex}] 🔍 Current character preview object: {(currentCharacterPreview != null ? currentCharacterPreview.name : "NULL")}");
+            }
+        }
+        else
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] ❌ NO MATCH: Character change not for us");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] 📝 Event player: '{playerGuid}' vs Our player: '{assignedPlayerGuid ?? "none"}'");
+            
+            // If this is a local preview and we have no assigned player, try to assign now
+            if (isLocalPlayerPreview && string.IsNullOrEmpty(assignedPlayerGuid))
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] 🔄 Local preview has no assignment, attempting to assign now");
+                AssignPlayerToPreviewPoint();
+            }
         }
     }
     
