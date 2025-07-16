@@ -152,20 +152,38 @@ public class PlayerSessionData : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void UpdatePlayerCharacterServerRpc(string playerId, int characterId)
     {
-        if (!IsServer) return;
+        if (!IsServer) 
+        {
+            Debug.Log($"🔄 PLAYERSESSION: UpdatePlayerCharacterServerRpc called but not server");
+            return;
+        }
+        
+        Debug.Log($"🔄 PLAYERSESSION: [SERVER] UpdatePlayerCharacterServerRpc - Player: {playerId}, Character: {characterId}");
         
         string playerGuid = GetPlayerGuid(playerId);
-        if (string.IsNullOrEmpty(playerGuid)) return;
+        if (string.IsNullOrEmpty(playerGuid)) 
+        {
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] Could not find GUID for player {playerId}");
+            return;
+        }
+        
+        Debug.Log($"🔄 PLAYERSESSION: [SERVER] Found player GUID: {playerGuid}");
         
         int sessionIndex = FindPlayerSessionIndex(playerGuid);
         if (sessionIndex >= 0)
         {
             PlayerSessionInfo session = playerSessions[sessionIndex];
+            int oldCharacterId = session.selectedCharacterId;
             session.selectedCharacterId = characterId;
             playerSessions[sessionIndex] = session;
             
-            Debug.Log($"[SERVER] Updated player {playerGuid} character to {characterId}");
+            Debug.Log($"🔄 PLAYERSESSION: [SERVER] Updated player {playerGuid} character from {oldCharacterId} to {characterId}");
+            Debug.Log($"🔄 PLAYERSESSION: [SERVER] Firing OnPlayerCharacterChanged event");
             OnPlayerCharacterChanged?.Invoke(playerGuid, characterId);
+        }
+        else
+        {
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] Could not find session for player GUID {playerGuid}");
         }
     }
     
@@ -192,6 +210,7 @@ public class PlayerSessionData : NetworkBehaviour
     public void SetPlayerCharacter(int characterId)
     {
         string currentPlayerId = AuthenticationService.Instance.PlayerId;
+        Debug.Log($"🔄 PLAYERSESSION: SetPlayerCharacter called - Player: {currentPlayerId}, Character: {characterId}");
         UpdatePlayerCharacterServerRpc(currentPlayerId, characterId);
     }
     
