@@ -4213,10 +4213,13 @@ MonoBehaviour:
   characterSpawnPoint: {fileID: 0}
   baseCharacterPrefab: {fileID: 4416926081852918481, guid: bacd700f1c4ac964cb2fcea1ff84bda3, type: 3}
   isLocalPlayerPreview: 0
-  previewPointIndex: 0
+  previewPointIndex: 1
   playerNameplate: {fileID: 0}
   playerNameText: {fileID: 0}
   readyIndicator: {fileID: 0}
+  notReadyColor: {r: 1, g: 0, b: 0, a: 1}
+  readyColor: {r: 0, g: 1, b: 0, a: 1}
+  readyIndicatorRenderer: {fileID: 1741200227}
 --- !u!114 &1044792312
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5974,7 +5977,10 @@ MonoBehaviour:
   previewPointIndex: 0
   playerNameplate: {fileID: 0}
   playerNameText: {fileID: 0}
-  readyIndicator: {fileID: 0}
+  readyIndicator: {fileID: 519616807}
+  notReadyColor: {r: 1, g: 0, b: 0, a: 1}
+  readyColor: {r: 0, g: 1, b: 0, a: 1}
+  readyIndicatorRenderer: {fileID: 0}
 --- !u!95 &1887190028
 Animator:
   serializedVersion: 7
@@ -6045,7 +6051,7 @@ SkinnedMeshRenderer:
   m_Quality: 0
   m_UpdateWhenOffscreen: 0
   m_SkinnedMotionVectors: 1
-  m_Mesh: {fileID: 0}
+  m_Mesh: {fileID: 4698152120088058464, guid: 36078ab0369161e49a29d349ae3e0739, type: 3}
   m_Bones: []
   m_BlendShapeWeights: []
   m_RootBone: {fileID: 0}
@@ -6108,7 +6114,10 @@ MonoBehaviour:
   previewPointIndex: 0
   playerNameplate: {fileID: 0}
   playerNameText: {fileID: 0}
-  readyIndicator: {fileID: 0}
+  readyIndicator: {fileID: 1747476907}
+  notReadyColor: {r: 1, g: 0, b: 0, a: 1}
+  readyColor: {r: 0, g: 1, b: 0, a: 1}
+  readyIndicatorRenderer: {fileID: 1747476909}
 --- !u!114 &1932115164
 MonoBehaviour:
   m_ObjectHideFlags: 0

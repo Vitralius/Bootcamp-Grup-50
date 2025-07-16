@@ -54,27 +54,43 @@ public class CharacterLoader : NetworkBehaviour
         // Subscribe to character ID changes for all clients
         selectedCharacterID.OnValueChanged += OnCharacterIDChanged;
         
-        // Subscribe to CharacterSelectionManager events if available
-        if (CharacterSelectionManager.Instance != null)
+        // Subscribe to PlayerSessionData events for character selection integration
+        if (PlayerSessionData.Instance != null)
         {
-            CharacterSelectionManager.Instance.OnPlayerCharacterChanged += OnPlayerCharacterChanged;
-        }
-        
-        // Also try to get character data from PlayerSessionData for lobby integration
-        if (PlayerSessionData.Instance != null && IsOwner)
-        {
-            var currentSession = PlayerSessionData.Instance.GetCurrentPlayerSession();
-            if (currentSession.HasValue && currentSession.Value.selectedCharacterId != 0)
+            PlayerSessionData.Instance.OnPlayerCharacterChanged += OnPlayerCharacterChangedInSession;
+            
+            // Load character from session data if we're the owner
+            if (IsOwner)
             {
-                // Load character from session data
-                LoadCharacterByID(currentSession.Value.selectedCharacterId);
+                var currentSession = PlayerSessionData.Instance.GetCurrentPlayerSession();
+                if (currentSession.HasValue && currentSession.Value.selectedCharacterId != 0)
+                {
+                    Debug.Log($"CharacterLoader: Loading character {currentSession.Value.selectedCharacterId} from session data");
+                    LoadCharacterByID(currentSession.Value.selectedCharacterId);
+                }
             }
         }
         
-        // Load character if we already have data
+        // Load character if we already have data in network variable
         if (selectedCharacterID.Value != -1)
         {
             LoadCharacterByID(selectedCharacterID.Value);
+        }
+        
+        // Also check if CharacterSelectionBridge has data for this player
+        if (CharacterSelectionBridge.Instance != null && IsOwner)
+        {
+            var localSession = PlayerSessionData.Instance?.GetCurrentPlayerSession();
+            if (localSession.HasValue)
+            {
+                string playerGuid = localSession.Value.playerId.ToString();
+                int characterSelection = CharacterSelectionBridge.Instance.GetPlayerCharacterSelection(playerGuid);
+                if (characterSelection != -1)
+                {
+                    Debug.Log($"CharacterLoader: Loading character {characterSelection} from bridge data");
+                    LoadCharacterByID(characterSelection);
+                }
+            }
         }
     }
     
@@ -82,10 +98,10 @@ public class CharacterLoader : NetworkBehaviour
     {
         selectedCharacterID.OnValueChanged -= OnCharacterIDChanged;
         
-        // Unsubscribe from CharacterSelectionManager events
-        if (CharacterSelectionManager.Instance != null)
+        // Unsubscribe from PlayerSessionData events
+        if (PlayerSessionData.Instance != null)
         {
-            CharacterSelectionManager.Instance.OnPlayerCharacterChanged -= OnPlayerCharacterChanged;
+            PlayerSessionData.Instance.OnPlayerCharacterChanged -= OnPlayerCharacterChangedInSession;
         }
         
         base.OnNetworkDespawn();
@@ -434,16 +450,21 @@ public class CharacterLoader : NetworkBehaviour
     }
     
     /// <summary>
-    /// Callback when any player's character selection changes via CharacterSelectionManager
+    /// Callback when any player's character selection changes via PlayerSessionData
     /// </summary>
-    /// <param name="playerId">Player ID who changed character</param>
+    /// <param name="playerGuid">Player GUID who changed character</param>
     /// <param name="characterId">New character ID</param>
-    private void OnPlayerCharacterChanged(ulong playerId, int characterId)
+    private void OnPlayerCharacterChangedInSession(string playerGuid, int characterId)
     {
         // Only apply to this player's character
-        if (playerId == OwnerClientId)
+        if (IsOwner && PlayerSessionData.Instance != null)
         {
-            LoadCharacterByID(characterId);
+            var currentSession = PlayerSessionData.Instance.GetCurrentPlayerSession();
+            if (currentSession.HasValue && currentSession.Value.playerId.ToString() == playerGuid)
+            {
+                Debug.Log($"CharacterLoader: Player {playerGuid} changed character to {characterId}, loading...");
+                LoadCharacterByID(characterId);
+            }
         }
     }
     

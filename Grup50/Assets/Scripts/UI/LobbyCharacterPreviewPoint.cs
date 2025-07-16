@@ -15,6 +15,11 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     [SerializeField] private TMPro.TMP_Text playerNameText;
     [SerializeField] private GameObject readyIndicator;
     
+    [Header("Ready Indicator Colors")]
+    [SerializeField] private Color notReadyColor = Color.red;
+    [SerializeField] private Color readyColor = Color.green;
+    [SerializeField] private Renderer readyIndicatorRenderer;
+    
     private GameObject currentCharacterPreview;
     private PreviewCharacterLoader previewCharacterLoader;
     private PlayerSessionData playerSessionData;
@@ -50,6 +55,15 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         playerSessionData.OnPlayerSessionUpdated += OnPlayerSessionUpdated;
         playerSessionData.OnPlayerCharacterChanged += OnPlayerCharacterChanged;
         playerSessionData.OnPlayerReadyChanged += OnPlayerReadyChanged;
+        playerSessionData.OnPlayerJoined += OnPlayerJoined;
+        
+        // Auto-find ready indicator renderer if not assigned
+        if (readyIndicatorRenderer == null && readyIndicator != null)
+        {
+            readyIndicatorRenderer = readyIndicator.GetComponent<Renderer>();
+            if (readyIndicatorRenderer == null)
+                readyIndicatorRenderer = readyIndicator.GetComponentInChildren<Renderer>();
+        }
         
         // Initialize preview character
         CreatePreviewCharacter();
@@ -61,8 +75,20 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         
         Debug.Log($"Preview point {previewPointIndex} initialized. isLocalPlayerPreview: {isLocalPlayerPreview}");
         
-        // Try to assign player (might not have any players yet)
-        AssignPlayerToPreviewPoint();
+        // Only assign players if this is a local player preview
+        if (isLocalPlayerPreview)
+        {
+            // Local player preview should show immediately
+            Debug.Log($"Preview point {previewPointIndex}: Assigning local player immediately");
+            AssignPlayerToPreviewPoint();
+        }
+        else
+        {
+            // Other player previews should wait for actual players to join
+            Debug.Log($"Preview point {previewPointIndex}: Waiting for other players to join...");
+            // Add a small delay to ensure the PlayerSessionData is fully initialized
+            Invoke(nameof(CheckForOtherPlayers), 1f);
+        }
     }
     
     private void CreatePreviewCharacter()
@@ -123,6 +149,56 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         Debug.Log($"Created character preview at point {previewPointIndex}");
     }
     
+    private void CheckForOtherPlayers()
+    {
+        if (!isLocalPlayerPreview && playerSessionData != null)
+        {
+            var otherPlayerCount = GetOtherPlayerCount();
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Initial check: {otherPlayerCount} other players found");
+            
+            // Only assign if there are actually other players AND this preview point has a player to show
+            if (otherPlayerCount > 0 && previewPointIndex < otherPlayerCount)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Attempting initial assignment...");
+                AssignPlayerToPreviewPoint();
+            }
+            else
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Staying hidden - not enough other players for this index");
+            }
+        }
+    }
+    
+    private int GetOtherPlayerCount()
+    {
+        if (playerSessionData == null) return 0;
+        
+        var allSessions = playerSessionData.GetConnectedPlayerSessions();
+        var localSession = playerSessionData.GetCurrentPlayerSession();
+        
+        if (!localSession.HasValue)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] No local session found for other player count");
+            return 0;
+        }
+        
+        string localPlayerId = localSession.Value.playerId.ToString();
+        int otherPlayerCount = 0;
+        
+        foreach (var session in allSessions)
+        {
+            string sessionPlayerId = session.playerId.ToString();
+            // Skip local player
+            if (sessionPlayerId != localPlayerId)
+            {
+                otherPlayerCount++;
+            }
+        }
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] GetOtherPlayerCount: {otherPlayerCount} (Total: {allSessions.Count}, Local: {localPlayerId})");
+        return otherPlayerCount;
+    }
+    
     private void AssignPlayerToPreviewPoint()
     {
         if (playerSessionData == null || !isInitialized) return;
@@ -131,57 +207,70 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         assignedPlayerGuid = null;
         SetPreviewVisible(false);
         
-        Debug.Log($"Assigning player to preview point {previewPointIndex}. isLocalPlayerPreview: {isLocalPlayerPreview}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Assigning player. isLocalPlayerPreview: {isLocalPlayerPreview}");
         
         if (isLocalPlayerPreview)
         {
-            // This preview point shows the local player
+            // This preview point shows the local player ONLY
             var currentSession = playerSessionData.GetCurrentPlayerSession();
             if (currentSession.HasValue)
             {
                 assignedPlayerGuid = currentSession.Value.playerId.ToString();
                 UpdatePreviewForPlayer(currentSession.Value);
                 SetPreviewVisible(true);
-                Debug.Log($"Assigned local player {assignedPlayerGuid} to preview point {previewPointIndex}");
+                Debug.Log($"[PREVIEW-{previewPointIndex}] ✓ Assigned LOCAL player {assignedPlayerGuid}");
             }
             else
             {
-                Debug.Log($"No local player session found for preview point {previewPointIndex}");
+                Debug.Log($"[PREVIEW-{previewPointIndex}] ✗ No local player session found");
             }
         }
         else
         {
-            // This preview point shows other players
+            // This preview point shows OTHER players only - strict filtering
             var allSessions = playerSessionData.GetConnectedPlayerSessions();
             var localSession = playerSessionData.GetCurrentPlayerSession();
             
-            Debug.Log($"Preview point {previewPointIndex}: Found {allSessions.Count} connected sessions");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Checking other players. Total sessions: {allSessions.Count}");
             
-            int otherPlayerIndex = 0;
-            foreach (var session in allSessions)
+            // Create list of OTHER players only (excluding local player)
+            var otherPlayerSessions = new System.Collections.Generic.List<PlayerSessionInfo>();
+            
+            if (localSession.HasValue)
             {
-                // Skip local player
-                if (localSession.HasValue && session.playerId.ToString() == localSession.Value.playerId.ToString())
-                {
-                    Debug.Log($"Skipping local player {session.playerId} for preview point {previewPointIndex}");
-                    continue;
-                }
+                string localPlayerId = localSession.Value.playerId.ToString();
                 
-                if (otherPlayerIndex == previewPointIndex)
+                foreach (var session in allSessions)
                 {
-                    assignedPlayerGuid = session.playerId.ToString();
-                    UpdatePreviewForPlayer(session);
-                    SetPreviewVisible(true);
-                    Debug.Log($"Assigned other player {assignedPlayerGuid} to preview point {previewPointIndex}");
-                    break;
+                    string sessionPlayerId = session.playerId.ToString();
+                    
+                    if (sessionPlayerId != localPlayerId)
+                    {
+                        otherPlayerSessions.Add(session);
+                        Debug.Log($"[PREVIEW-{previewPointIndex}] Found other player: {sessionPlayerId}");
+                    }
+                    else
+                    {
+                        Debug.Log($"[PREVIEW-{previewPointIndex}] Skipped local player: {sessionPlayerId}");
+                    }
                 }
-                
-                otherPlayerIndex++;
             }
             
-            if (assignedPlayerGuid == null)
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Total OTHER players: {otherPlayerSessions.Count}");
+            
+            // CRITICAL: Only assign if we have enough other players for this specific preview point index
+            if (otherPlayerSessions.Count > 0 && previewPointIndex < otherPlayerSessions.Count)
             {
-                Debug.Log($"No other player found for preview point {previewPointIndex} (index {previewPointIndex})");
+                var targetSession = otherPlayerSessions[previewPointIndex];
+                assignedPlayerGuid = targetSession.playerId.ToString();
+                UpdatePreviewForPlayer(targetSession);
+                SetPreviewVisible(true);
+                Debug.Log($"[PREVIEW-{previewPointIndex}] ✓ Assigned OTHER player {assignedPlayerGuid}");
+            }
+            else
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] ✗ NOT ENOUGH other players. Need: {previewPointIndex + 1}, Have: {otherPlayerSessions.Count}");
+                // Explicitly stay hidden - this is correct behavior
             }
         }
     }
@@ -206,7 +295,15 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         // Update ready indicator
         if (readyIndicator != null)
         {
-            readyIndicator.SetActive(playerInfo.isReady);
+            readyIndicator.SetActive(true); // Always show the indicator
+            
+            // Change color based on ready state
+            if (readyIndicatorRenderer != null)
+            {
+                Color targetColor = playerInfo.isReady ? readyColor : notReadyColor;
+                readyIndicatorRenderer.material.color = targetColor;
+                Debug.Log($"Preview point {previewPointIndex}: Updated ready indicator color to {targetColor} (isReady: {playerInfo.isReady})");
+            }
         }
         
         // Load character data using PreviewCharacterLoader
@@ -239,30 +336,92 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     
     private void OnPlayerSessionUpdated(PlayerSessionInfo sessionInfo)
     {
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Session updated - {sessionInfo.playerId}, assigned: {assignedPlayerGuid ?? "none"}");
+        
         if (sessionInfo.playerId.ToString() == assignedPlayerGuid)
         {
+            // Update our assigned player's data
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Updating assigned player data");
             UpdatePreviewForPlayer(sessionInfo);
         }
-        else
+        else if (!isLocalPlayerPreview)
         {
-            // Player list might have changed, reassign preview points
+            // For non-local preview points, carefully check if we need to reassign
+            // This handles new players joining and players leaving
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Checking for reassignment...");
+            AssignPlayerToPreviewPoint();
+        }
+        else if (isLocalPlayerPreview && string.IsNullOrEmpty(assignedPlayerGuid))
+        {
+            // Local player preview might need to assign local player if not assigned yet
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Local preview checking for assignment...");
             AssignPlayerToPreviewPoint();
         }
     }
     
     private void OnPlayerCharacterChanged(string playerGuid, int characterId)
     {
+        Debug.Log($"Preview point {previewPointIndex}: Character changed for player {playerGuid} to character {characterId}. Assigned player: {assignedPlayerGuid}");
+        
         if (playerGuid == assignedPlayerGuid && previewCharacterLoader != null)
         {
+            Debug.Log($"Preview point {previewPointIndex}: Loading character {characterId} for assigned player");
             previewCharacterLoader.LoadCharacterByID(characterId);
         }
     }
     
     private void OnPlayerReadyChanged(string playerGuid, bool isReady)
     {
-        if (playerGuid == assignedPlayerGuid && readyIndicator != null)
+        if (playerGuid == assignedPlayerGuid)
         {
-            readyIndicator.SetActive(isReady);
+            UpdateReadyIndicator(isReady);
+        }
+    }
+    
+    private void UpdateReadyIndicator(bool isReady)
+    {
+        if (readyIndicator != null)
+        {
+            readyIndicator.SetActive(true); // Always show the indicator
+            
+            // Change color based on ready state
+            if (readyIndicatorRenderer != null)
+            {
+                Color targetColor = isReady ? readyColor : notReadyColor;
+                readyIndicatorRenderer.material.color = targetColor;
+                Debug.Log($"Preview point {previewPointIndex}: Updated ready indicator color to {targetColor} (isReady: {isReady})");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"Preview point {previewPointIndex}: Ready indicator is null!");
+        }
+    }
+    
+    private void OnPlayerJoined(string playerGuid)
+    {
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Player joined - {playerGuid}");
+        
+        // Only react if this is not a local player preview
+        if (!isLocalPlayerPreview)
+        {
+            // Check if this is actually a different player (not the local player)
+            var localSession = playerSessionData.GetCurrentPlayerSession();
+            bool isNewOtherPlayer = !localSession.HasValue || playerGuid != localSession.Value.playerId.ToString();
+            
+            if (isNewOtherPlayer)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] New OTHER player joined - reassigning...");
+                AssignPlayerToPreviewPoint();
+            }
+            else
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Local player event, ignoring...");
+            }
+        }
+        else
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Local preview ignoring join event");
         }
     }
     
@@ -295,6 +454,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             playerSessionData.OnPlayerSessionUpdated -= OnPlayerSessionUpdated;
             playerSessionData.OnPlayerCharacterChanged -= OnPlayerCharacterChanged;
             playerSessionData.OnPlayerReadyChanged -= OnPlayerReadyChanged;
+            playerSessionData.OnPlayerJoined -= OnPlayerJoined;
         }
         
         if (currentCharacterPreview != null)
