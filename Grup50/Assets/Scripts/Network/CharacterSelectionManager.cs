@@ -3,6 +3,10 @@ using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
 
+// DEPRECATED: This system conflicts with PlayerSessionData. 
+// Use PlayerSessionData instead for character selection.
+// Keeping this file for reference but marking as obsolete.
+[System.Obsolete("Use PlayerSessionData instead for character selection")]
 public class CharacterSelectionManager : NetworkBehaviour
 {
     [Header("Character Selection Settings")]

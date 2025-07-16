@@ -2,12 +2,15 @@ using UnityEngine;
 using Unity.Netcode;
 using Unity.Services.Authentication;
 
+/// <summary>
+/// Bridges character selection data from lobby (PlayerSessionData) to gameplay (CharacterLoader).
+/// Handles transferring character selections when transitioning from lobby to game.
+/// </summary>
 public class CharacterSelectionBridge : NetworkBehaviour
 {
     public static CharacterSelectionBridge Instance { get; private set; }
     
     private PlayerSessionData playerSessionData;
-    private CharacterSelectionManager characterSelectionManager;
     
     private void Awake()
     {
@@ -32,71 +35,44 @@ public class CharacterSelectionBridge : NetworkBehaviour
         playerSessionData = FindFirstObjectByType<PlayerSessionData>();
         if (playerSessionData == null)
         {
-            Debug.LogError("PlayerSessionData not found! Bridge will not work.");
-            return;
-        }
-        
-        // Get CharacterSelectionManager
-        characterSelectionManager = FindFirstObjectByType<CharacterSelectionManager>();
-        if (characterSelectionManager == null)
-        {
-            Debug.LogError("CharacterSelectionManager not found! Bridge will not work.");
+            Debug.LogError("CharacterSelectionBridge: PlayerSessionData not found! Bridge will not work.");
             return;
         }
         
         // Subscribe to PlayerSessionData events
         playerSessionData.OnPlayerCharacterChanged += OnPlayerCharacterChangedInSession;
         playerSessionData.OnPlayerReadyChanged += OnPlayerReadyChangedInSession;
+        playerSessionData.OnPlayerJoined += OnPlayerJoinedSession;
+        playerSessionData.OnPlayerLeft += OnPlayerLeftSession;
         
-        // Subscribe to CharacterSelectionManager events
-        characterSelectionManager.OnPlayerCharacterChanged += OnPlayerCharacterChangedInManager;
-        
-        Debug.Log("CharacterSelectionBridge initialized successfully");
+        Debug.Log("CharacterSelectionBridge: Initialized successfully with PlayerSessionData");
     }
     
     private void OnPlayerCharacterChangedInSession(string playerGuid, int characterId)
     {
-        // Convert from PlayerSessionData to CharacterSelectionManager
-        // We need to find the NetworkManager client ID for this player
+        Debug.Log($"CharacterSelectionBridge: Player {playerGuid} changed character to {characterId}");
         
-        // For now, we'll use a simple approach - in a real game you'd need proper mapping
-        // This is a limitation of bridging between two different systems
-        
-        var currentPlayerSession = playerSessionData.GetCurrentPlayerSession();
-        if (currentPlayerSession.HasValue && currentPlayerSession.Value.playerId.ToString() == playerGuid)
-        {
-            // This is the local player changing character
-            var localClientId = NetworkManager.Singleton.LocalClientId;
-            
-            // Update the old character selection manager
-            if (characterSelectionManager != null)
-            {
-                characterSelectionManager.RequestCharacterSelection(characterId);
-            }
-        }
+        // Store this information for when we transition to gameplay
+        // The actual character application will happen in TransferSessionDataToGameplay()
     }
     
     private void OnPlayerReadyChangedInSession(string playerGuid, bool isReady)
     {
-        // Similar to character change, update the old system
-        var currentPlayerSession = playerSessionData.GetCurrentPlayerSession();
-        if (currentPlayerSession.HasValue && currentPlayerSession.Value.playerId.ToString() == playerGuid)
-        {
-            var localClientId = NetworkManager.Singleton.LocalClientId;
-            
-            if (characterSelectionManager != null)
-            {
-                characterSelectionManager.SetPlayerReady(isReady);
-            }
-        }
+        Debug.Log($"CharacterSelectionBridge: Player {playerGuid} ready state changed to {isReady}");
+        
+        // Store this information for lobby management
+        // The bridge doesn't need to do anything special here, 
+        // as ready state is handled by the lobby system
     }
     
-    private void OnPlayerCharacterChangedInManager(ulong playerId, int characterId)
+    private void OnPlayerJoinedSession(string playerGuid)
     {
-        // This handles changes from the old system to the new system
-        // In practice, you'd typically only use one system, but this provides compatibility
-        
-        Debug.Log($"Character changed in manager: Player {playerId} -> Character {characterId}");
+        Debug.Log($"CharacterSelectionBridge: Player {playerGuid} joined session");
+    }
+    
+    private void OnPlayerLeftSession(string playerGuid)
+    {
+        Debug.Log($"CharacterSelectionBridge: Player {playerGuid} left session");
     }
     
     public void TransferSessionDataToGameplay()
@@ -159,14 +135,46 @@ public class CharacterSelectionBridge : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// Gets the PlayerSessionData instance
+    /// </summary>
+    /// <returns>PlayerSessionData instance</returns>
     public PlayerSessionData GetPlayerSessionData()
     {
         return playerSessionData;
     }
     
-    public CharacterSelectionManager GetCharacterSelectionManager()
+    /// <summary>
+    /// Gets character selection data for a specific player
+    /// </summary>
+    /// <param name="playerGuid">Player GUID</param>
+    /// <returns>Character ID, or -1 if not found</returns>
+    public int GetPlayerCharacterSelection(string playerGuid)
     {
-        return characterSelectionManager;
+        if (playerSessionData == null) return -1;
+        
+        var session = playerSessionData.GetPlayerSession(playerGuid);
+        return session?.selectedCharacterId ?? -1;
+    }
+    
+    /// <summary>
+    /// Gets all player character selections
+    /// </summary>
+    /// <returns>Dictionary of player GUID to character ID</returns>
+    public System.Collections.Generic.Dictionary<string, int> GetAllPlayerSelections()
+    {
+        var selections = new System.Collections.Generic.Dictionary<string, int>();
+        
+        if (playerSessionData != null)
+        {
+            var sessions = playerSessionData.GetConnectedPlayerSessions();
+            foreach (var session in sessions)
+            {
+                selections[session.playerId.ToString()] = session.selectedCharacterId;
+            }
+        }
+        
+        return selections;
     }
     
     public override void OnDestroy()
@@ -181,11 +189,8 @@ public class CharacterSelectionBridge : NetworkBehaviour
         {
             playerSessionData.OnPlayerCharacterChanged -= OnPlayerCharacterChangedInSession;
             playerSessionData.OnPlayerReadyChanged -= OnPlayerReadyChangedInSession;
-        }
-        
-        if (characterSelectionManager != null)
-        {
-            characterSelectionManager.OnPlayerCharacterChanged -= OnPlayerCharacterChangedInManager;
+            playerSessionData.OnPlayerJoined -= OnPlayerJoinedSession;
+            playerSessionData.OnPlayerLeft -= OnPlayerLeftSession;
         }
         
         base.OnDestroy();
