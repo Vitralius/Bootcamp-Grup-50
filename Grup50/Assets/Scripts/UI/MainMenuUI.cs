@@ -750,16 +750,38 @@ public class MainMenuUI : MonoBehaviour
         currentCharacterIndex = (currentCharacterIndex - 1 + availableCharacters.Count) % availableCharacters.Count;
         currentSelectedCharacter = availableCharacters[currentCharacterIndex];
         
+        Debug.Log($"🔄 MAINMENU: Previous character clicked - {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+        Debug.Log($"🔄 MAINMENU: Current character index: {currentCharacterIndex}/{availableCharacters.Count}");
+        
         // Update session data
         if (playerSessionData != null)
         {
-            playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+            Debug.Log($"🔄 MAINMENU: PlayerSessionData found - calling SetPlayerCharacter({currentSelectedCharacter.characterID})");
+            
+            // Check if we're in a lobby and networked
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                Debug.Log($"🔄 MAINMENU: Network is active - setting character via PlayerSessionData");
+                playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+            }
+            else
+            {
+                Debug.LogWarning($"🔄 MAINMENU: Network not active - cannot sync character selection");
+            }
+        }
+        else
+        {
+            Debug.LogError("🔄 MAINMENU: playerSessionData is NULL! Character preview will not update.");
+            Debug.LogError($"🔄 MAINMENU: NetworkManager status: {(Unity.Netcode.NetworkManager.Singleton != null ? "Active" : "NULL")}");
         }
         
-        // Update preview (will be handled by LobbyCharacterPreviewPoint)
+        // Update local UI immediately
         UpdateCharacterSelection();
         
-        Debug.Log($"Selected previous character: {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+        // FALLBACK: If preview doesn't update via events, try direct update
+        Invoke(nameof(FallbackUpdatePreview), 0.2f);
+        
+        Debug.Log($"🔄 MAINMENU: Character selection complete for {currentSelectedCharacter.characterName}");
     }
     
     private void OnNextCharacterClicked()
@@ -769,16 +791,38 @@ public class MainMenuUI : MonoBehaviour
         currentCharacterIndex = (currentCharacterIndex + 1) % availableCharacters.Count;
         currentSelectedCharacter = availableCharacters[currentCharacterIndex];
         
+        Debug.Log($"🔄 MAINMENU: Next character clicked - {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+        Debug.Log($"🔄 MAINMENU: Current character index: {currentCharacterIndex}/{availableCharacters.Count}");
+        
         // Update session data
         if (playerSessionData != null)
         {
-            playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+            Debug.Log($"🔄 MAINMENU: PlayerSessionData found - calling SetPlayerCharacter({currentSelectedCharacter.characterID})");
+            
+            // Check if we're in a lobby and networked
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                Debug.Log($"🔄 MAINMENU: Network is active - setting character via PlayerSessionData");
+                playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+            }
+            else
+            {
+                Debug.LogWarning($"🔄 MAINMENU: Network not active - cannot sync character selection");
+            }
+        }
+        else
+        {
+            Debug.LogError("🔄 MAINMENU: playerSessionData is NULL! Character preview will not update.");
+            Debug.LogError($"🔄 MAINMENU: NetworkManager status: {(Unity.Netcode.NetworkManager.Singleton != null ? "Active" : "NULL")}");
         }
         
-        // Update preview (will be handled by LobbyCharacterPreviewPoint)
+        // Update local UI immediately
         UpdateCharacterSelection();
         
-        Debug.Log($"Selected next character: {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+        // FALLBACK: If preview doesn't update via events, try direct update
+        Invoke(nameof(FallbackUpdatePreview), 0.2f);
+        
+        Debug.Log($"🔄 MAINMENU: Character selection complete for {currentSelectedCharacter.characterName}");
     }
     
     private void OnPlayerSessionUpdated(PlayerSessionInfo sessionInfo)
@@ -803,6 +847,47 @@ public class MainMenuUI : MonoBehaviour
     public CharacterData GetCurrentSelectedCharacter()
     {
         return currentSelectedCharacter;
+    }
+    
+    private void FallbackUpdatePreview()
+    {
+        Debug.Log($"🔄 MAINMENU: FallbackUpdatePreview called");
+        
+        if (currentSelectedCharacter == null)
+        {
+            Debug.LogWarning($"🔄 MAINMENU: No current selected character for fallback");
+            return;
+        }
+        
+        // Try to find and directly update the local preview point
+        var previewPoints = FindObjectsByType<LobbyCharacterPreviewPoint>(FindObjectsSortMode.None);
+        Debug.Log($"🔄 MAINMENU: Found {previewPoints.Length} preview points");
+        
+        foreach (var previewPoint in previewPoints)
+        {
+            // Look for the local player preview point
+            if (previewPoint.name.Contains("Local") || previewPoint.transform.GetSiblingIndex() == 0)
+            {
+                Debug.Log($"🔄 MAINMENU: Found potential local preview point: {previewPoint.name}");
+                
+                // Get the PreviewCharacterLoader directly
+                var previewLoader = previewPoint.GetComponentInChildren<PreviewCharacterLoader>();
+                if (previewLoader != null)
+                {
+                    Debug.Log($"🔄 MAINMENU: Directly loading character {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+                    previewLoader.LoadCharacterByID(currentSelectedCharacter.characterID);
+                    previewLoader.SetVisible(true);
+                    Debug.Log($"🔄 MAINMENU: Fallback character loading completed");
+                    return;
+                }
+                else
+                {
+                    Debug.LogWarning($"🔄 MAINMENU: No PreviewCharacterLoader found on {previewPoint.name}");
+                }
+            }
+        }
+        
+        Debug.LogWarning($"🔄 MAINMENU: No suitable preview point found for fallback update");
     }
     
     private void OnDestroy()
