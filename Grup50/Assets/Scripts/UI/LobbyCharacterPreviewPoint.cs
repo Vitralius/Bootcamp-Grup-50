@@ -65,7 +65,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
                 readyIndicatorRenderer = readyIndicator.GetComponentInChildren<Renderer>();
         }
         
-        // Initialize preview character
+        // Initialize preview character but keep it hidden
         CreatePreviewCharacter();
         
         // Start hidden until a player is assigned
@@ -73,21 +73,20 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         
         isInitialized = true;
         
-        Debug.Log($"Preview point {previewPointIndex} initialized. isLocalPlayerPreview: {isLocalPlayerPreview}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Initialized. isLocalPlayerPreview: {isLocalPlayerPreview}");
         
         // Only assign players if this is a local player preview
         if (isLocalPlayerPreview)
         {
-            // Local player preview should show immediately
-            Debug.Log($"Preview point {previewPointIndex}: Assigning local player immediately");
-            AssignPlayerToPreviewPoint();
+            // Local player preview should show immediately when local player is ready
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Local preview waiting for local player session...");
+            Invoke(nameof(TryAssignLocalPlayer), 0.5f);
         }
         else
         {
-            // Other player previews should wait for actual players to join
-            Debug.Log($"Preview point {previewPointIndex}: Waiting for other players to join...");
-            // Add a small delay to ensure the PlayerSessionData is fully initialized
-            Invoke(nameof(CheckForOtherPlayers), 1f);
+            // Other player previews start hidden and wait for actual players to join
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Other preview waiting for other players...");
+            // Don't do any automatic assignment - wait for events
         }
     }
     
@@ -149,22 +148,43 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         Debug.Log($"Created character preview at point {previewPointIndex}");
     }
     
+    private void TryAssignLocalPlayer()
+    {
+        if (!isLocalPlayerPreview || !isInitialized || playerSessionData == null)
+            return;
+            
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Trying to assign local player...");
+        
+        var currentSession = playerSessionData.GetCurrentPlayerSession();
+        if (currentSession.HasValue)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Found local player session, assigning...");
+            AssignPlayerToPreviewPoint();
+        }
+        else
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] No local player session yet, retrying in 1s...");
+            Invoke(nameof(TryAssignLocalPlayer), 1f);
+        }
+    }
+    
     private void CheckForOtherPlayers()
     {
+        // This method is now only called by events, not during initialization
         if (!isLocalPlayerPreview && playerSessionData != null)
         {
             var otherPlayerCount = GetOtherPlayerCount();
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Initial check: {otherPlayerCount} other players found");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Event-triggered check: {otherPlayerCount} other players found");
             
-            // Only assign if there are actually other players AND this preview point has a player to show
-            if (otherPlayerCount > 0 && previewPointIndex < otherPlayerCount)
+            // Only assign if we don't already have someone assigned and there are other players
+            if (string.IsNullOrEmpty(assignedPlayerGuid) && otherPlayerCount > 0 && previewPointIndex < otherPlayerCount)
             {
-                Debug.Log($"[PREVIEW-{previewPointIndex}] Attempting initial assignment...");
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Attempting assignment due to player join event...");
                 AssignPlayerToPreviewPoint();
             }
             else
             {
-                Debug.Log($"[PREVIEW-{previewPointIndex}] Staying hidden - not enough other players for this index");
+                Debug.Log($"[PREVIEW-{previewPointIndex}] No assignment needed (already assigned: {!string.IsNullOrEmpty(assignedPlayerGuid)}, count: {otherPlayerCount})");
             }
         }
     }
@@ -323,6 +343,8 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     
     private void SetPreviewVisible(bool visible)
     {
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Setting visibility: {visible}");
+        
         if (previewCharacterLoader != null)
         {
             previewCharacterLoader.SetVisible(visible);
@@ -331,6 +353,17 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         if (playerNameplate != null)
         {
             playerNameplate.SetActive(visible);
+        }
+        
+        if (readyIndicator != null)
+        {
+            readyIndicator.SetActive(visible);
+        }
+        
+        // Also hide the entire character preview object if needed
+        if (currentCharacterPreview != null)
+        {
+            currentCharacterPreview.SetActive(visible);
         }
     }
     
@@ -346,16 +379,27 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         }
         else if (!isLocalPlayerPreview)
         {
-            // For non-local preview points, carefully check if we need to reassign
-            // This handles new players joining and players leaving
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Checking for reassignment...");
-            AssignPlayerToPreviewPoint();
+            // For non-local preview points, only reassign if we need to accommodate new players
+            // But be more conservative - only if we don't have anyone assigned yet
+            if (string.IsNullOrEmpty(assignedPlayerGuid))
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] No one assigned, checking for new other players...");
+                AssignPlayerToPreviewPoint();
+            }
+            else
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Already have player assigned, not reassigning");
+            }
         }
         else if (isLocalPlayerPreview && string.IsNullOrEmpty(assignedPlayerGuid))
         {
-            // Local player preview might need to assign local player if not assigned yet
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Local preview checking for assignment...");
-            AssignPlayerToPreviewPoint();
+            // Local player preview needs to assign local player if not assigned yet
+            var currentSession = playerSessionData.GetCurrentPlayerSession();
+            if (currentSession.HasValue && currentSession.Value.playerId.ToString() == sessionInfo.playerId.ToString())
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Local player session available, assigning...");
+                AssignPlayerToPreviewPoint();
+            }
         }
     }
     
@@ -409,10 +453,14 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             var localSession = playerSessionData.GetCurrentPlayerSession();
             bool isNewOtherPlayer = !localSession.HasValue || playerGuid != localSession.Value.playerId.ToString();
             
-            if (isNewOtherPlayer)
+            if (isNewOtherPlayer && string.IsNullOrEmpty(assignedPlayerGuid))
             {
-                Debug.Log($"[PREVIEW-{previewPointIndex}] New OTHER player joined - reassigning...");
+                Debug.Log($"[PREVIEW-{previewPointIndex}] New OTHER player joined and we have no assignment - checking...");
                 AssignPlayerToPreviewPoint();
+            }
+            else if (isNewOtherPlayer)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] New OTHER player joined but we already have {assignedPlayerGuid}");
             }
             else
             {

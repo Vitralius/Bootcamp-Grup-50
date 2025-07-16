@@ -32,6 +32,9 @@ public class PreviewCharacterLoader : MonoBehaviour
         
         // Store defaults
         StoreDefaults();
+        
+        // Start with visibility disabled - will be enabled when character is loaded
+        SetVisible(false);
     }
     
     private void StoreDefaults()
