@@ -47,6 +47,7 @@ This is a Unity 3D multiplayer game project built using:
 
 ### Character System Guidelines
 - **Always refer to ThirdPersonCharacter.md** for any character-related modifications
+- **Always refer to CharacterSelectionSystem.md** for character selection and loading system implementations
 - **Always check web research** before implementing character system changes
 - **Network-first design** - consider multiplayer implications for all character features
 

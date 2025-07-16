@@ -98,13 +98,6 @@ public class MultiplayerManager : MonoBehaviour
                 Data = new Dictionary<string, DataObject>
                 {
                     { "RelayJoinCode", new DataObject(DataObject.VisibilityOptions.Member, joinCode) }
-                },
-                Player = new Player
-                {
-                    Data = new Dictionary<string, PlayerDataObject>
-                    {
-                        { "RelayAllocationId", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, allocation.AllocationId.ToString()) }
-                    }
                 }
             };
             
