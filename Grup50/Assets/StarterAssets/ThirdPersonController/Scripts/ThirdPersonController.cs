@@ -166,6 +166,10 @@ namespace StarterAssets
         private float _rotationVelocity;
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
+        
+        // direction values for debug and animation
+        private float _directionX;
+        private float _directionY;
 
         // timeout deltatime
         private float _jumpTimeoutDelta;
@@ -180,6 +184,8 @@ namespace StarterAssets
         private int _animIDCrouched;
         private int _animIDDoubleJump;
         private int _animIDSliding;
+        private int _animIDDirectionX;
+        private int _animIDDirectionY;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
@@ -396,6 +402,8 @@ namespace StarterAssets
             _animIDCrouched = Animator.StringToHash("Crouched");
             _animIDDoubleJump = Animator.StringToHash("DoubleJump");
             _animIDSliding = Animator.StringToHash("Sliding");
+            _animIDDirectionX = Animator.StringToHash("DirectionX");
+            _animIDDirectionY = Animator.StringToHash("DirectionY");
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -836,6 +844,33 @@ namespace StarterAssets
             // normalise input direction
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
 
+            // Calculate DirectionX and DirectionY relative to camera
+            _directionX = 0f;
+            _directionY = 0f;
+            
+            if (_input.move != Vector2.zero)
+            {
+                // Get camera forward and right directions (flattened to horizontal plane)
+                Vector3 cameraForward = _mainCamera.transform.forward;
+                Vector3 cameraRight = _mainCamera.transform.right;
+                cameraForward.y = 0f;
+                cameraRight.y = 0f;
+                cameraForward.Normalize();
+                cameraRight.Normalize();
+                
+                // Calculate movement direction in world space relative to camera
+                Vector3 moveDirection = cameraRight * _input.move.x + cameraForward * _input.move.y;
+                moveDirection.Normalize();
+                
+                // Project movement direction onto camera's local axes to get DirectionX and DirectionY
+                _directionX = Vector3.Dot(moveDirection, cameraRight);
+                _directionY = Vector3.Dot(moveDirection, cameraForward);
+                
+                // Clamp to ensure values are between -1 and 1
+                _directionX = Mathf.Clamp(_directionX, -1f, 1f);
+                _directionY = Mathf.Clamp(_directionY, -1f, 1f);
+            }
+
             // note: Vector2's != operator uses approximation so is not floating point error prone, and is cheaper than magnitude
             // if there is a move input rotate player when the player is moving
             if (_input.move != Vector2.zero)
@@ -863,7 +898,17 @@ namespace StarterAssets
             if (_hasAnimator)
             {
                 _animator.SetFloat(_animIDSpeed, _animationBlend);
+                // // Calculate normalized speed (0-1) for animation
+                // float maxPossibleSpeed = _input.sprint ? SprintSpeed : f;
+                // if (_isCrouching)
+                //     maxPossibleSpeed *= CrouchSpeedMultiplier;
+                //
+                // float normalizedSpeed = maxPossibleSpeed > 0 ? Mathf.Clamp01(_speed / maxPossibleSpeed) : 0f;
+                //
+                // _animator.SetFloat(_animIDSpeed, normalizedSpeed);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+                _animator.SetFloat(_animIDDirectionX, _directionX);
+                _animator.SetFloat(_animIDDirectionY, _directionY);
             }
         }
         
@@ -908,6 +953,10 @@ namespace StarterAssets
             if (_hasAnimator)
             {
                 _animator.SetFloat(_animIDSpeed, _slideSpeed);
+                // Calculate normalized slide speed (0-1) for animation
+                // float normalizedSlideSpeed = MaxSlideSpeed > 0 ? Mathf.Clamp01(_slideSpeed / MaxSlideSpeed) : 0f;
+                //
+                // _animator.SetFloat(_animIDSpeed, normalizedSlideSpeed);
                 _animator.SetFloat(_animIDMotionSpeed, 1f);
             }
         }
@@ -1205,7 +1254,12 @@ namespace StarterAssets
             }
                 
             float speedPercentage = maxPossibleSpeed > 0 ? (currentSpeed / maxPossibleSpeed) * 100f : 0f;
-            return $"Speed: {speedPercentage:F0}% ({currentSpeed:F1}m/s)";
+            
+            // Format direction values with color coding for better readability
+            string directionXStr = _directionX.ToString("F2");
+            string directionYStr = _directionY.ToString("F2");
+            
+            return $"Speed: {speedPercentage:F0}% ({currentSpeed:F1}m/s)\nDir: X={directionXStr} Y={directionYStr}";
         }
 
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)

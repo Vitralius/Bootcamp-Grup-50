@@ -243,9 +243,9 @@ public class PreviewCharacterLoader : MonoBehaviour
             appliedAnyChanges = true;
             
             // Set preview animation after a short delay to let animator initialize
-            if (autoPlayPreviewAnimation && previewAnimationClip != null)
+            if (autoPlayPreviewAnimation)
             {
-                Invoke(nameof(PlayPreviewAnimation), previewAnimationDelay);
+                Invoke(nameof(SetPreviewAnimationParameters), previewAnimationDelay);
             }
         }
         
@@ -297,10 +297,10 @@ public class PreviewCharacterLoader : MonoBehaviour
         {
             animator.runtimeAnimatorController = defaultAnimatorController;
             
-            // Play default preview animation
-            if (autoPlayPreviewAnimation && previewAnimationClip != null)
+            // Set default preview animation parameters
+            if (autoPlayPreviewAnimation)
             {
-                Invoke(nameof(PlayPreviewAnimation), previewAnimationDelay);
+                Invoke(nameof(SetPreviewAnimationParameters), previewAnimationDelay);
             }
         }
         
@@ -367,64 +367,62 @@ public class PreviewCharacterLoader : MonoBehaviour
     }
     
     /// <summary>
-    /// Plays the preview animation
+    /// Sets the animation parameters for preview (idle state)
     /// </summary>
-    private void PlayPreviewAnimation()
+    private void SetPreviewAnimationParameters()
     {
         if (animator == null || !animator.enabled)
         {
-            Debug.LogWarning("PreviewCharacterLoader: Cannot play preview animation - animator is null or disabled");
+            Debug.LogWarning("PreviewCharacterLoader: Cannot set preview animation parameters - animator is null or disabled");
             return;
         }
         
-        if (previewAnimationClip == null)
-        {
-            Debug.LogWarning("PreviewCharacterLoader: Cannot play preview animation - previewAnimationClip is null");
-            TryFallbackAnimation();
-            return;
-        }
-        
-        // Debug animator controller info
-        if (animator.runtimeAnimatorController != null)
-        {
-            Debug.Log($"PreviewCharacterLoader: Animator controller: {animator.runtimeAnimatorController.name}");
-            Debug.Log($"PreviewCharacterLoader: Layer count: {animator.layerCount}");
-        }
-        else
+        if (animator.runtimeAnimatorController == null)
         {
             Debug.LogWarning("PreviewCharacterLoader: No animator controller assigned!");
             return;
         }
         
-        // Try multiple approaches to play the animation
-        bool animationPlayed = false;
+        Debug.Log($"PreviewCharacterLoader: Setting preview animation parameters for idle state");
         
-        // Method 1: Try direct animation clip name
-        if (TryPlayAnimationByName(previewAnimationClip.name))
+        // Set parameters for idle/standing state
+        try
         {
-            animationPlayed = true;
+            // Set Speed to 0 for idle/standing
+            animator.SetFloat("Speed", 0f);
+            Debug.Log($"✓ Set Speed parameter to 0");
+            
+            // Set DirectionX and DirectionY to 0 for standing still
+            animator.SetFloat("DirectionX", 0f);
+            animator.SetFloat("DirectionY", 0f);
+            Debug.Log($"✓ Set DirectionX and DirectionY parameters to 0");
+            
+            // Set other common parameters for idle state
+            animator.SetFloat("MotionSpeed", 0f);
+            animator.SetBool("Grounded", true);
+            animator.SetBool("Jump", false);
+            animator.SetBool("FreeFall", false);
+            animator.SetBool("Crouched", false);
+            animator.SetBool("Sliding", false);
+            animator.SetBool("DoubleJump", false);
+            
+            Debug.Log($"✅ PreviewCharacterLoader: Successfully set all animation parameters for idle preview");
         }
-        // Method 2: Try common state name variations
-        else if (TryPlayAnimationByName($"Base Layer.{previewAnimationClip.name}"))
+        catch (System.Exception e)
         {
-            animationPlayed = true;
-        }
-        // Method 3: Try with layer 0 specification
-        else if (TryPlayAnimationByName(previewAnimationClip.name, 0))
-        {
-            animationPlayed = true;
-        }
-        // Method 4: Try CrossFade for smoother transition
-        else if (TryPlayAnimationByCrossFade(previewAnimationClip.name))
-        {
-            animationPlayed = true;
-        }
-        
-        if (!animationPlayed)
-        {
-            Debug.LogWarning($"Failed to play preview animation '{previewAnimationClip.name}' - trying fallback");
+            Debug.LogWarning($"PreviewCharacterLoader: Failed to set some animation parameters: {e.Message}");
+            // Try fallback approach if parameter setting fails
             TryFallbackAnimation();
         }
+    }
+    
+    /// <summary>
+    /// Plays the preview animation (legacy method, kept for backwards compatibility)
+    /// </summary>
+    private void PlayPreviewAnimation()
+    {
+        // For blend tree systems, use parameter setting instead
+        SetPreviewAnimationParameters();
     }
     
     /// <summary>
@@ -479,10 +477,10 @@ public class PreviewCharacterLoader : MonoBehaviour
         previewAnimationClip = animationClip;
         Debug.Log($"PreviewCharacterLoader: Set preview animation to: {(animationClip != null ? animationClip.name : "NULL")}");
         
-        // Play immediately if auto-play is enabled and animator is ready
-        if (autoPlayPreviewAnimation && animator != null && animator.enabled && animationClip != null)
+        // Set parameters immediately if auto-play is enabled and animator is ready
+        if (autoPlayPreviewAnimation && animator != null && animator.enabled)
         {
-            PlayPreviewAnimation();
+            SetPreviewAnimationParameters();
         }
     }
     
@@ -493,7 +491,7 @@ public class PreviewCharacterLoader : MonoBehaviour
     {
         if (animator != null && animator.enabled)
         {
-            PlayPreviewAnimation();
+            SetPreviewAnimationParameters();
         }
     }
     
