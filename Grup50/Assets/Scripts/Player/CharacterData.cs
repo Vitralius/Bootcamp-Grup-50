@@ -19,7 +19,7 @@ public class CharacterData : ScriptableObject
     
     [Header("Visual Data")]
     [Tooltip("Character prefab to instantiate (optional - for completely different models)")]
-    [SerializeField] private GameObject characterPrefab;
+    [SerializeField] public GameObject characterPrefab;
     
     /// <summary>
     /// Gets the character prefab for this character

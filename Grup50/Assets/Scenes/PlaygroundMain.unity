@@ -643,7 +643,7 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 736906651}
-    PlayerPrefab: {fileID: 4416926081852918481, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
+    PlayerPrefab: {fileID: 649807951716550721, guid: 1ef71323ff25ced47ba4fd0028299d8c, type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: d7e65418b1c40b942abdc417b41b5877, type: 2}
@@ -897,7 +897,7 @@ MonoBehaviour:
   - {fileID: 1836798117}
   - {fileID: 1422633008}
   defaultSpawnPosition: {x: 0, y: 5, z: 0}
-  playerPrefab: {fileID: 4416926081852918481, guid: 4e7c61cd8d7074a4892e113e5888e8a2, type: 3}
+  playerPrefab: {fileID: 649807951716550721, guid: 1ef71323ff25ced47ba4fd0028299d8c, type: 3}
 --- !u!4 &790433991
 Transform:
   m_ObjectHideFlags: 0
