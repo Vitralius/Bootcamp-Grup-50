@@ -240,6 +240,13 @@ public class CharacterLoader : NetworkBehaviour
         {
             Debug.LogError($"CharacterLoader: No CharacterPrefab or skeletalMesh specified for {characterData.characterName}. " +
                          "For different characters, you MUST provide a CharacterPrefab with the complete skeleton + mesh.");
+            
+            // For debugging: Log current character data state
+            Debug.LogError($"CharacterLoader: CharacterData debug info for {characterData.characterName}:");
+            Debug.LogError($"  - CharacterPrefab: {(characterData.characterPrefab != null ? characterData.characterPrefab.name : "NULL")}");
+            Debug.LogError($"  - SkeletalMesh: {(characterData.skeletalMesh != null ? characterData.skeletalMesh.name : "NULL")}");
+            Debug.LogError($"  - AnimatorController: {(characterData.animatorController != null ? characterData.animatorController.name : "NULL")}");
+            
             return;
         }
         
@@ -277,6 +284,29 @@ public class CharacterLoader : NetworkBehaviour
         Debug.Log($"CharacterLoader: Starting complete prefab replacement for {characterData.characterName}");
         Debug.Log($"CharacterLoader: Removing existing skeleton and mesh...");
         
+        // Preserve the PlayerCameraRoot (Cinemachine camera target) during character replacement
+        GameObject playerCameraRoot = null;
+        Transform cameraRootTransform = null;
+        
+        // Find and temporarily store the PlayerCameraRoot
+        for (int i = 0; i < characterMeshParent.childCount; i++)
+        {
+            GameObject child = characterMeshParent.GetChild(i).gameObject;
+            if (child.name == "PlayerCameraRoot")
+            {
+                playerCameraRoot = child;
+                cameraRootTransform = child.transform;
+                Debug.Log($"CharacterLoader: Found PlayerCameraRoot, preserving it during replacement");
+                break;
+            }
+        }
+        
+        // Temporarily reparent the PlayerCameraRoot to avoid destruction
+        if (playerCameraRoot != null)
+        {
+            playerCameraRoot.transform.SetParent(null);
+        }
+        
         // Remove existing character mesh/model (this includes the old skeleton)
         for (int i = characterMeshParent.childCount - 1; i >= 0; i--)
         {
@@ -298,6 +328,16 @@ public class CharacterLoader : NetworkBehaviour
         newCharacter.transform.localScale = characterData.characterScale;
         
         Debug.Log($"CharacterLoader: New character instantiated: {newCharacter.name}");
+        
+        // Restore the PlayerCameraRoot after character replacement
+        if (playerCameraRoot != null)
+        {
+            playerCameraRoot.transform.SetParent(characterMeshParent);
+            playerCameraRoot.transform.localPosition = new Vector3(0, 1.375f, 0);
+            playerCameraRoot.transform.localRotation = Quaternion.identity;
+            playerCameraRoot.transform.localScale = Vector3.one;
+            Debug.Log($"CharacterLoader: Restored PlayerCameraRoot after character replacement");
+        }
         
         // Update animator reference if the new prefab has one
         Animator newAnimator = newCharacter.GetComponentInChildren<Animator>();
@@ -618,6 +658,27 @@ public class CharacterLoader : NetworkBehaviour
     {
         if (originalCharacterMesh != null && characterMeshParent != null)
         {
+            // Preserve the PlayerCameraRoot (Cinemachine camera target) during reset
+            GameObject playerCameraRoot = null;
+            
+            // Find and temporarily store the PlayerCameraRoot
+            for (int i = 0; i < characterMeshParent.childCount; i++)
+            {
+                GameObject child = characterMeshParent.GetChild(i).gameObject;
+                if (child.name == "PlayerCameraRoot")
+                {
+                    playerCameraRoot = child;
+                    Debug.Log($"CharacterLoader: Found PlayerCameraRoot, preserving it during reset");
+                    break;
+                }
+            }
+            
+            // Temporarily reparent the PlayerCameraRoot to avoid destruction
+            if (playerCameraRoot != null)
+            {
+                playerCameraRoot.transform.SetParent(null);
+            }
+            
             // Clear current mesh
             for (int i = characterMeshParent.childCount - 1; i >= 0; i--)
             {
@@ -629,6 +690,16 @@ public class CharacterLoader : NetworkBehaviour
             restoredMesh.transform.localPosition = Vector3.zero;
             restoredMesh.transform.localRotation = Quaternion.identity;
             restoredMesh.transform.localScale = Vector3.one;
+            
+            // Restore the PlayerCameraRoot after original mesh restoration
+            if (playerCameraRoot != null)
+            {
+                playerCameraRoot.transform.SetParent(characterMeshParent);
+                playerCameraRoot.transform.localPosition = new Vector3(0, 1.375f, 0);
+                playerCameraRoot.transform.localRotation = Quaternion.identity;
+                playerCameraRoot.transform.localScale = Vector3.one;
+                Debug.Log($"CharacterLoader: Restored PlayerCameraRoot after reset");
+            }
         }
         
         if (originalAnimatorController != null && characterAnimator != null)

@@ -17,13 +17,11 @@ MonoBehaviour:
   characterIcon: {fileID: 21300000, guid: 751aa1b6637101946b2fdbb7aa27d6ad, type: 3}
   characterPreview: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   characterPrefab: {fileID: 0}
-  skeletalMesh: {fileID: 4698152120088058464, guid: 36078ab0369161e49a29d349ae3e0739, type: 3}
+  skeletalMesh: {fileID: -8452158422333049815, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
   outfitMeshes: []
   characterMaterials:
   - {fileID: 2100000, guid: f26e8277bcd632140b7f009d384ea9d3, type: 2}
-  - {fileID: 2100000, guid: f26e8277bcd632140b7f009d384ea9d3, type: 2}
-  - {fileID: 2100000, guid: f26e8277bcd632140b7f009d384ea9d3, type: 2}
-  animatorController: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
+  animatorController: {fileID: 9100000, guid: 63279d7d4e0973547839265c97f0235f, type: 2}
   characterScale: {x: 1, y: 1, z: 1}
   targetRendererNames: []
   useOptimizedMesh: 1

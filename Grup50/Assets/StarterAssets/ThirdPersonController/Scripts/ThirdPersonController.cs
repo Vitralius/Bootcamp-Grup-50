@@ -95,6 +95,14 @@ namespace StarterAssets
         [Tooltip("Sprint screen shake intensity")]
         [Range(0f, 1f)]
         public float SprintShakeIntensity = 0.3f;
+        
+        [Tooltip("Mouse look sensitivity")]
+        [Range(0.1f, 10f)]
+        public float MouseSensitivity = 1.0f;
+        
+        [Tooltip("Controller look sensitivity")]
+        [Range(0.1f, 10f)]
+        public float ControllerSensitivity = 2.0f;
 
         [Space(10)]
         [Header("Debug")]
@@ -247,8 +255,25 @@ namespace StarterAssets
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
+            
+            // Debug missing components
+            if (_input == null)
+            {
+                Debug.LogError($"[ThirdPersonController] StarterAssetsInputs component is missing from {gameObject.name}. " +
+                             "Please add StarterAssetsInputs component to fix null reference errors.");
+            }
+            
+            if (_controller == null)
+            {
+                Debug.LogError($"[ThirdPersonController] CharacterController component is missing from {gameObject.name}.");
+            }
+            
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
+            if (_playerInput == null)
+            {
+                Debug.LogError($"[ThirdPersonController] PlayerInput component is missing from {gameObject.name}.");
+            }
 #else
 			Debug.LogError( "Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
 #endif
@@ -269,18 +294,90 @@ namespace StarterAssets
 
             if (IsOwner)
             {
+                Debug.Log($"[ThirdPersonController] Setting up camera for owner: {gameObject.name}");
+                
                 _mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponentInChildren<Camera>();
+                if (_mainCamera == null)
+                {
+                    Debug.LogError($"[ThirdPersonController] MainCamera not found for {gameObject.name}!");
+                }
+                else
+                {
+                    Debug.Log($"[ThirdPersonController] Found MainCamera: {_mainCamera.name}");
+                }
                 
                 // Set up Cinemachine camera to follow this player
-                _virtualCamera = GameObject.FindFirstObjectByType<CinemachineCamera>();
+                // CRITICAL FIX: Find ALL CinemachineCameras and disable non-owner ones
+                CinemachineCamera[] allCameras = GameObject.FindObjectsOfType<CinemachineCamera>();
+                Debug.Log($"[ThirdPersonController] Found {allCameras.Length} CinemachineCameras in scene");
+                
+                foreach (CinemachineCamera cam in allCameras)
+                {
+                    // Disable all cameras first
+                    cam.gameObject.SetActive(false);
+                    Debug.Log($"[ThirdPersonController] Disabled camera: {cam.name}");
+                }
+                
+                // Re-enable the first camera for this owner
+                if (allCameras.Length > 0)
+                {
+                    _virtualCamera = allCameras[0];
+                    _virtualCamera.gameObject.SetActive(true);
+                    Debug.Log($"[ThirdPersonController] Re-enabled camera for owner: {_virtualCamera.name}");
+                }
+                
                 if (_virtualCamera != null)
                 {
-                    _virtualCamera.Follow = CinemachineCameraTarget.transform;
-                    _virtualCamera.LookAt = CinemachineCameraTarget.transform;
+                    // CRITICAL FIX: Find CinemachineCameraTarget if it's null
+                    if (CinemachineCameraTarget == null)
+                    {
+                        Debug.LogError($"[ThirdPersonController] CinemachineCameraTarget is NULL! Searching for PlayerCameraRoot...");
+                        GameObject playerCameraRoot = GameObject.FindGameObjectWithTag("CinemachineTarget");
+                        if (playerCameraRoot == null)
+                        {
+                            // Try to find by name
+                            playerCameraRoot = GameObject.Find("PlayerCameraRoot");
+                        }
+                        
+                        if (playerCameraRoot != null)
+                        {
+                            CinemachineCameraTarget = playerCameraRoot;
+                            Debug.Log($"[ThirdPersonController] Found and assigned CinemachineCameraTarget: {CinemachineCameraTarget.name}");
+                        }
+                        else
+                        {
+                            Debug.LogError($"[ThirdPersonController] Could not find PlayerCameraRoot!");
+                        }
+                    }
+                    
+                    Debug.Log($"[ThirdPersonController] CinemachineCameraTarget: {(CinemachineCameraTarget != null ? CinemachineCameraTarget.name : "NULL")}");
+                    Debug.Log($"[ThirdPersonController] CinemachineCameraTarget world position: {(CinemachineCameraTarget != null ? CinemachineCameraTarget.transform.position.ToString() : "NULL")}");
+                    Debug.Log($"[ThirdPersonController] CinemachineCameraTarget local position: {(CinemachineCameraTarget != null ? CinemachineCameraTarget.transform.localPosition.ToString() : "NULL")}");
+                    
+                    // CRITICAL FIX: Ensure camera target is in correct position
+                    if (CinemachineCameraTarget != null)
+                    {
+                        CinemachineCameraTarget.transform.localPosition = new Vector3(0, 1.375f, 0);
+                        Debug.Log($"[ThirdPersonController] Fixed camera target local position to: {CinemachineCameraTarget.transform.localPosition}");
+                        
+                        _virtualCamera.Follow = CinemachineCameraTarget.transform;
+                        _virtualCamera.LookAt = CinemachineCameraTarget.transform;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[ThirdPersonController] Cannot set up camera - CinemachineCameraTarget is still NULL!");
+                    }
                     
                     // Store original FOV
                     _originalFOV = _virtualCamera.Lens.FieldOfView;
                     _targetFOV = _originalFOV;
+                    
+                    Debug.Log($"[ThirdPersonController] Set up Cinemachine camera: {_virtualCamera.name}, FOV: {_originalFOV}");
+                    Debug.Log($"[ThirdPersonController] Camera follow target set to: {_virtualCamera.Follow.name}");
+                }
+                else
+                {
+                    Debug.LogError($"[ThirdPersonController] CinemachineCamera not found for {gameObject.name}!");
                 }
                 
                 // Get screen shake manager
@@ -296,9 +393,15 @@ namespace StarterAssets
                 
                 // Enable input for owner player
                 if (_input != null)
+                {
                     _input.enabled = true;
+                    Debug.Log($"[ThirdPersonController] Enabled input for {gameObject.name}");
+                }
                 if (_playerInput != null)
+                {
                     _playerInput.enabled = true;
+                    Debug.Log($"[ThirdPersonController] Enabled PlayerInput for {gameObject.name}");
+                }
             }
             else
             {
@@ -371,7 +474,7 @@ namespace StarterAssets
                 _hasAnimator = TryGetComponent(out _animator);
 
             // Handle menu toggle (always allowed)
-            if (_input.menu)
+            if (_input != null && _input.menu)
             {
                 _input.menu = false; // Reset the input
                 _input.ToggleCursor();
@@ -674,13 +777,16 @@ namespace StarterAssets
                 return;
                 
             // if there is an input and camera position is not fixed
-            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
+            if (_input != null && _input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
             {
                 //Don't multiply mouse input by Time.deltaTime;
                 float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+                
+                // Apply sensitivity based on input device
+                float sensitivity = IsCurrentDeviceMouse ? MouseSensitivity : ControllerSensitivity;
 
-                _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
-                _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
+                _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier * sensitivity;
+                _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier * sensitivity;
             }
 
             // clamp our rotations so our values are limited 360 degrees
@@ -909,6 +1015,12 @@ namespace StarterAssets
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
                 _animator.SetFloat(_animIDDirectionX, _directionX);
                 _animator.SetFloat(_animIDDirectionY, _directionY);
+                
+                // Debug animation parameters (only when moving to avoid spam)
+                if (_input.move != Vector2.zero && ShowDebugInfo)
+                {
+                    Debug.Log($"[ThirdPersonController] Animation Parameters - Speed: {_animationBlend:F2}, DirectionX: {_directionX:F2}, DirectionY: {_directionY:F2}");
+                }
             }
         }
         
