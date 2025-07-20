@@ -308,7 +308,7 @@ namespace StarterAssets
                 
                 // Set up Cinemachine camera to follow this player
                 // CRITICAL FIX: Find ALL CinemachineCameras and disable non-owner ones
-                CinemachineCamera[] allCameras = GameObject.FindObjectsOfType<CinemachineCamera>();
+                CinemachineCamera[] allCameras = GameObject.FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None);
                 Debug.Log($"[ThirdPersonController] Found {allCameras.Length} CinemachineCameras in scene");
                 
                 foreach (CinemachineCamera cam in allCameras)
@@ -1335,7 +1335,7 @@ namespace StarterAssets
             else if (_isCrouching)
                 states.Add("CROUCHED");
                 
-            if (_input.sprint && !_isCrouching && !_isSliding)
+             if (_input.sprint && !_isCrouching && !_isSliding)
                 states.Add("SPRINTING");
                 
             if (_jumpCount > 0)

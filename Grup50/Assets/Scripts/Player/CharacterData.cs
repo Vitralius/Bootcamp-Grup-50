@@ -18,22 +18,10 @@ public class CharacterData : ScriptableObject
     public Sprite characterPreview;
     
     [Header("Visual Data")]
-    [Tooltip("Character prefab to instantiate (optional - for completely different models)")]
-    [SerializeField] public GameObject characterPrefab;
-    
-    /// <summary>
-    /// Gets the character prefab for this character
-    /// </summary>
-    /// <returns>Character prefab GameObject</returns>
-    public GameObject GetCharacterPrefab()
-    {
-        return characterPrefab;
-    }
-    
-    [Tooltip("Skeletal mesh for SkinnedMeshRenderer (main body mesh)")]
+    [Tooltip("Skeletal mesh to replace on the spawned character (same skeleton structure required for animation compatibility)")]
     public Mesh skeletalMesh;
     
-    [Tooltip("Additional meshes for outfit parts (head, torso, legs, etc.)")]
+    [Tooltip("Additional meshes for outfit parts (head, torso, legs, etc.) - all must use same skeleton structure")]
     public Mesh[] outfitMeshes;
     
     [Tooltip("Character materials to apply")]
@@ -49,8 +37,13 @@ public class CharacterData : ScriptableObject
     [Tooltip("Target SkinnedMeshRenderer names to replace (leave empty to replace all)")]
     public string[] targetRendererNames;
     
-    [Tooltip("Use optimized mesh (better performance, requires same bone structure)")]
-    public bool useOptimizedMesh = true;
+    [Tooltip("Since all characters use the same skeleton, bone reassignment is automatic")]
+    [SerializeField] private bool _sameSkeleton = true; // Always true for this system
+    
+    /// <summary>
+    /// Gets whether this character uses the same skeleton structure (always true in this system)
+    /// </summary>
+    public bool UsesSameSkeleton => _sameSkeleton;
     
     [Header("Movement Stats")]
     [Tooltip("Move speed of the character in m/s")]
@@ -172,7 +165,12 @@ public class CharacterData : ScriptableObject
     public int characterID = 0;
     
     /// <summary>
-    /// Gets the character prefab (use this instead of direct field access)
+    /// Validates that this character data has the required skeletal mesh for character loading
     /// </summary>
-    public GameObject CharacterPrefab => characterPrefab;
+    public bool IsValid => skeletalMesh != null;
+    
+    /// <summary>
+    /// Gets a description of what's missing if character data is invalid
+    /// </summary>
+    public string ValidationError => skeletalMesh == null ? "Skeletal mesh is required" : "Valid";
 }
