@@ -49,6 +49,27 @@ This is a Unity 3D multiplayer game project built using:
 - **Character not visible**: Check the skeletal mesh is properly assigned to CharacterData
 - **Bounds issues**: System automatically fixes bounds center and size
 
+### Animation System (8-Way Movement)
+**CRITICAL**: DirectionX and DirectionY are calculated relative to **character mesh facing direction**, not camera direction:
+- **DirectionX**: -1 = moving left relative to character mesh, +1 = moving right relative to character mesh
+- **DirectionY**: -1 = moving backward relative to character mesh, +1 = moving forward relative to character mesh
+
+#### 8-Way Movement Values:
+- **Forward**: DirectionX = 0, DirectionY = 1
+- **Backward**: DirectionX = 0, DirectionY = -1  
+- **Right**: DirectionX = 1, DirectionY = 0
+- **Left**: DirectionX = -1, DirectionY = 0
+- **Forward-Right**: DirectionX = 0.7, DirectionY = 0.7
+- **Forward-Left**: DirectionX = -0.7, DirectionY = 0.7
+- **Backward-Right**: DirectionX = 0.7, DirectionY = -0.7
+- **Backward-Left**: DirectionX = -0.7, DirectionY = -0.7
+
+#### Benefits for Aiming Mechanics:
+- ✅ **Character can face different direction than movement** (essential for aiming)
+- ✅ **Perfect for blend trees** with forward/backward/left/right/diagonal animations
+- ✅ **Movement input remains camera-relative** (good player control)
+- ✅ **Animation values are mesh-relative** (good for 8-way blending)
+
 ### Core Scripts
 - `Assets/StarterAssets/ThirdPersonController/Scripts/ThirdPersonController.cs` - Modified from Starter Assets to inherit from `NetworkBehaviour` with ownership checks
 - `Assets/Scripts/Player/PlayerMovement.cs` - Custom network movement implementation with NetworkVariable<Vector3> for position synchronization
