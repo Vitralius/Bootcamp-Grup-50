@@ -221,7 +221,7 @@ MonoBehaviour:
   CameraLerpSpeed: 1
   SprintFOVIncrease: 5
   EnableSprintScreenShake: 1
-  SprintShakeIntensity: 0.11
+  SprintShakeIntensity: 0.04
   MouseSensitivity: 1
   ControllerSensitivity: 2
   ShowDebugInfo: 1

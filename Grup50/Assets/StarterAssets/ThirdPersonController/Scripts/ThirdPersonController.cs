@@ -950,13 +950,14 @@ namespace StarterAssets
             // normalise input direction
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
 
-            // Calculate DirectionX and DirectionY relative to camera
+            // Calculate DirectionX and DirectionY relative to CHARACTER'S mesh facing direction
+            // This provides 8-way movement values for animation blending and future aiming mechanics
             _directionX = 0f;
             _directionY = 0f;
             
             if (_input.move != Vector2.zero)
             {
-                // Get camera forward and right directions (flattened to horizontal plane)
+                // Get camera forward and right directions (for movement calculation)
                 Vector3 cameraForward = _mainCamera.transform.forward;
                 Vector3 cameraRight = _mainCamera.transform.right;
                 cameraForward.y = 0f;
@@ -964,13 +965,24 @@ namespace StarterAssets
                 cameraForward.Normalize();
                 cameraRight.Normalize();
                 
-                // Calculate movement direction in world space relative to camera
+                // Calculate movement direction in world space relative to camera (for actual movement)
                 Vector3 moveDirection = cameraRight * _input.move.x + cameraForward * _input.move.y;
                 moveDirection.Normalize();
                 
-                // Project movement direction onto camera's local axes to get DirectionX and DirectionY
-                _directionX = Vector3.Dot(moveDirection, cameraRight);
-                _directionY = Vector3.Dot(moveDirection, cameraForward);
+                // CRITICAL: Get character's CURRENT facing direction (before rotation update)
+                // This gives us movement direction relative to where the character mesh is facing
+                Vector3 characterForward = transform.forward;
+                Vector3 characterRight = transform.right;
+                characterForward.y = 0f;
+                characterRight.y = 0f;
+                characterForward.Normalize();
+                characterRight.Normalize();
+                
+                // Project movement direction onto CHARACTER's local axes (not camera axes)
+                // DirectionX: -1 = moving left relative to character, +1 = moving right relative to character  
+                // DirectionY: -1 = moving backward relative to character, +1 = moving forward relative to character
+                _directionX = Vector3.Dot(moveDirection, characterRight);
+                _directionY = Vector3.Dot(moveDirection, characterForward);
                 
                 // Clamp to ensure values are between -1 and 1
                 _directionX = Mathf.Clamp(_directionX, -1f, 1f);
@@ -1019,7 +1031,7 @@ namespace StarterAssets
                 // Debug animation parameters (only when moving to avoid spam)
                 if (_input.move != Vector2.zero && ShowDebugInfo)
                 {
-                    Debug.Log($"[ThirdPersonController] Animation Parameters - Speed: {_animationBlend:F2}, DirectionX: {_directionX:F2}, DirectionY: {_directionY:F2}");
+                    Debug.Log($"[ThirdPersonController] 8-Way Animation - Speed: {_animationBlend:F2}, DirectionX: {_directionX:F2} (L/R relative to mesh), DirectionY: {_directionY:F2} (F/B relative to mesh)");
                 }
             }
         }
@@ -1367,11 +1379,11 @@ namespace StarterAssets
                 
             float speedPercentage = maxPossibleSpeed > 0 ? (currentSpeed / maxPossibleSpeed) * 100f : 0f;
             
-            // Format direction values with color coding for better readability
+            // Format direction values relative to character mesh facing direction
             string directionXStr = _directionX.ToString("F2");
             string directionYStr = _directionY.ToString("F2");
             
-            return $"Speed: {speedPercentage:F0}% ({currentSpeed:F1}m/s)\nDir: X={directionXStr} Y={directionYStr}";
+            return $"Speed: {speedPercentage:F0}% ({currentSpeed:F1}m/s)\nMesh-Relative: X={directionXStr} Y={directionYStr}";
         }
 
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
