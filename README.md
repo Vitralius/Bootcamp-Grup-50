@@ -146,23 +146,6 @@ https://github.com/user-attachments/assets/ed5c2228-fe94-4729-8a29-1643808bbdd4
 Trello üzerinden yürütülen Sprint Board güncellenmiş ve görevler ilerleme durumuna göre yeniden düzenlenmiştir.
 ![trello2](https://github.com/user-attachments/assets/00b263d4-60c6-47fa-b904-0c341f8e54dc)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
 - **Sprint Review**:
     - Ekip görevlerinin sağladığı gelişmeleri açıkladı.
     - Oyun içi demo için gerekli olan modellerin (kale parçaları, çevre detayları, temel UI öğeleri) ilk versiyonları tamamlanmıştır.
@@ -184,5 +167,21 @@ Trello üzerinden yürütülen Sprint Board güncellenmiş ve görevler ilerleme
   -  Ekip içi iletişimin olumlu etkisi net şekilde hissedildi. Özellikle günlük değerlendirmeler ve kısa check-in'ler verimliliği artırdı.
   -  SPRINT 3 için hedef, oynanabilir bir demo hazırlamak ve temel oyun döngüsünü tamamlamak olarak belirlendi.
   -  Kodlama tarafında düşman AI ve savaş sistemi gibi çekirdek mekaniklere öncelik verilecek. Modelleme tarafında ise çevresel detaylar ve seviye çeşitliliği üzerinde durulacak.
+
+<details> <summary><h3>Oyun Durumu: Ekran Görüntüleri</h3></summary>
+- <img width="1600" height="899" alt="image" src="https://github.com/user-attachments/assets/998bb8b4-0f96-40cd-a0cf-895c20de6582" />
+- <img width="1600" height="835" alt="image" src="https://github.com/user-attachments/assets/151e1292-8402-4fc2-8f36-a3c58fdca6c9" />
+- <img width="1600" height="787" alt="image" src="https://github.com/user-attachments/assets/3a9a1a4d-0bf4-4aa1-9fab-8e5b1d215de0" />
+- <img width="1600" height="814" alt="image" src="https://github.com/user-attachments/assets/1be65e93-9b32-4846-8565-e3180ffe04a2" />
+- <img width="957" height="533" alt="image" src="https://github.com/user-attachments/assets/a8b4c825-8f71-4ce8-9478-2e5dbbbec89e" />
+- <img width="951" height="536" alt="image" src="https://github.com/user-attachments/assets/e96f0bd5-6c91-4507-be76-b7cd76552539" />
+- <img width="949" height="532" alt="image" src="https://github.com/user-attachments/assets/320b8c88-6461-48f9-83d4-ec4b57416535" />
+- <img width="688" height="802" alt="image" src="https://github.com/user-attachments/assets/c784989f-f9f9-4d30-8751-ae74fad801fc" />
+ 
+
+
+
+
+
 
 
