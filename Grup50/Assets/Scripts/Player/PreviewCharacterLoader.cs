@@ -553,6 +553,7 @@ public class PreviewCharacterLoader : MonoBehaviour
             // Get all states from the first layer
             if (animator.layerCount > 0)
             {
+#if UNITY_EDITOR
                 var animatorController = animator.runtimeAnimatorController as UnityEditor.Animations.AnimatorController;
                 if (animatorController != null)
                 {
@@ -567,6 +568,7 @@ public class PreviewCharacterLoader : MonoBehaviour
                         }
                     }
                 }
+#endif
             }
         }
         
