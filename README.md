@@ -2,7 +2,8 @@
 ## Takım İsmi
 ARCEON
 ## **Takım Logosu**
-![logoson](https://github.com/user-attachments/assets/e72aef27-405f-4861-ab9c-a18bc96457d7)
+<img width="618" height="518" alt="image" src="https://github.com/user-attachments/assets/cf45d63e-a45b-488b-a42a-94a0f6915d9b" />
+
 ## Takım Üyeleri
 - ***Muhammed Berk Köse*** - Product Owner
 - ***Çağatay Öztürk*** - Scrum Master
@@ -105,7 +106,83 @@ Daily Scrum toplantılarının Whatsapp üzerinden yürütülmesine karar verilm
 
 </details>
 
+# **SPRINT 2**
+- Proje boyunca tamamlanması hedeflenen toplam 30 puanlık backlog, 3 sprint'e bölünerek yönetilecektir. Bu nedenle ikinci sprint için 10 puan ile devam edilmesine karar verilmiştir.
+- **Sprint içinde tamamlanması tahmin edilen puan**: 10 Puan
+
+## Daily Scrum:
+Daily Scrum toplantılarının Whatsapp üzerinden devam edilmesine karar verilmiştir. Görüşmeler çoğunlukla mesaj üzerinden konuşularak ve görsel öğeler paylaşılarak yapılmıştır.
+<details> <summary><h3>Daily Scrumlardan ekran görüntüleri</h3></summary>
+<img width="842" height="782" alt="image" src="https://github.com/user-attachments/assets/becc315c-f039-4a5f-8056-5370097792e2" />
+<img width="978" height="733" alt="image" src="https://github.com/user-attachments/assets/d226f1aa-5e7d-4879-a126-233a0344c478" />
+<img width="815" height="771" alt="image" src="https://github.com/user-attachments/assets/a6dde782-cb53-4e3a-8caa-6f9dd34e4fab" />
+<img width="599" height="500" alt="image" src="https://github.com/user-attachments/assets/3d78847a-24d4-4313-9940-b28d340ad507" />
+<img width="729" height="439" alt="image" src="https://github.com/user-attachments/assets/b832601d-e014-4229-86d7-6d0da1d93620" />
+<img width="1250" height="677" alt="image" src="https://github.com/user-attachments/assets/47645056-2e13-471a-baac-df8d9969d553" />
+<img width="1355" height="772" alt="image" src="https://github.com/user-attachments/assets/7975c720-64ab-4a63-8fe9-97a0cde97a38" />
+<img width="1241" height="717" alt="image" src="https://github.com/user-attachments/assets/32ac3593-22e2-458f-a537-a1ede0a51190" />
+<img width="1213" height="772" alt="image" src="https://github.com/user-attachments/assets/4a416a36-d4b7-461f-9b11-98b32a844a72" />
+
+https://github.com/user-attachments/assets/ed5c2228-fe94-4729-8a29-1643808bbdd4
 
 
+
+<img width="1247" height="679" alt="image" src="https://github.com/user-attachments/assets/27b1fecc-6840-4686-9619-b3a57044a857" />
+<img width="1255" height="503" alt="image" src="https://github.com/user-attachments/assets/9af5a9b2-a78a-4056-975a-39ee07941059" />
+<img width="1506" height="869" alt="image" src="https://github.com/user-attachments/assets/94eccf69-2f69-4786-9188-2b83a0b723d2" />
+<img width="1099" height="786" alt="image" src="https://github.com/user-attachments/assets/2c46cdfa-49f2-4ccb-8b3c-38c905c5e63e" />
+<img width="890" height="610" alt="image" src="https://github.com/user-attachments/assets/483b186d-7ef5-4a47-8f6b-95e40f211dea" />
+<img width="793" height="830" alt="image" src="https://github.com/user-attachments/assets/873ab625-5286-4cda-887c-9dad76693ac1" />
+<img width="1252" height="844" alt="image" src="https://github.com/user-attachments/assets/2df92fb2-09ff-4147-95b6-af98036f8565" />
+
+<img width="874" height="640" alt="image" src="https://github.com/user-attachments/assets/fff80a6d-19b3-41e9-b490-0c2b0d091565" />
+
+<img width="1581" height="833" alt="image" src="https://github.com/user-attachments/assets/82a6334f-7c3e-4b24-aad5-3e43445618d9" />
+
+</details>
+
+
+## SPRINT BOARD UPDATE: 
+Trello üzerinden yürütülen Sprint Board güncellenmiş ve görevler ilerleme durumuna göre yeniden düzenlenmiştir.
+![trello2](https://github.com/user-attachments/assets/00b263d4-60c6-47fa-b904-0c341f8e54dc)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+- **Sprint Review**:
+    - Ekip görevlerinin sağladığı gelişmeleri açıkladı.
+    - Oyun içi demo için gerekli olan modellerin (kale parçaları, çevre detayları, temel UI öğeleri) ilk versiyonları tamamlanmıştır.
+    - Kod tarafında karakter hareketleri geliştirildi, düşman karakterler için temel AI sistemi üzerinde çalışmalara başlandı.
+    - Oyunun atmosferini oluşturacak olan temel ses ve müzik dosyalarının araştırmasına başlandı.
+    - Önceki sprintte belirlenen oyun temasına sadık kalınarak, görsel ve mekanik tutarlılık sağlanmaya çalışıldı.
+    - Ekip, geliştirdiği içerikleri birbirine entegre ederek demo sahnesine temel bir oynanış akışı kazandırmaya başladı.
+    - Ekip içi iletişim ve görev takibi daha da oturmuş durumda, bu sayede sprint hedeflerine zamanında ulaşmak daha mümkün hale gelmiştir.
+    - Sprint süresince ekip üyeleri, sorumlu oldukları görevleri tamamlayarak proje gelişimine katkıda bulundu.
+    - Geliştirilen içerikler ekip tarafından test edildi ve genel işleyişin beklentilerle uyumlu olduğu gözlemlendi.
+    - Oyun mekaniklerinin işlevselliği, görsel bütünlük ve kullanıcı deneyimi açısından değerlendirmeler yapıldı. Elde edilen çıktılar üzerinden ekip içinde geri bildirimler alındı ve iyileştirme önerileri paylaşıldı.
+
+  Sprint sonunda, tamamlanan görevlerin projenin genel ilerleyişine olumlu katkı sağladığı sonucuna varıldı. Kalan süre göz önünde bulundurularak hız ve koordinasyonun artırılmasına karar verildi.
+      
+ **Sprint Retrospective:** 
+  -  Takım, sprint sürecinde yapılan işlerin genel olarak planlamayla uyumlu ilerlediğini değerlendirdi.
+  -  Modelleme ve kodlama ekipleri arasındaki eşgüdüm arttı; modellerin oyun motoruna entegrasyonu daha akıcı hale geldi.
+  -  Süreç içerisinde bazı görevlerin tahmin edilenden fazla zaman aldığı gözlemlendi. Bu nedenle görev puanlamalarının bir sonraki sprintte daha dikkatli yapılmasına karar verildi.
+  -  Ekip içi iletişimin olumlu etkisi net şekilde hissedildi. Özellikle günlük değerlendirmeler ve kısa check-in'ler verimliliği artırdı.
+  -  SPRINT 3 için hedef, oynanabilir bir demo hazırlamak ve temel oyun döngüsünü tamamlamak olarak belirlendi.
+  -  Kodlama tarafında düşman AI ve savaş sistemi gibi çekirdek mekaniklere öncelik verilecek. Modelleme tarafında ise çevresel detaylar ve seviye çeşitliliği üzerinde durulacak.
 
 
