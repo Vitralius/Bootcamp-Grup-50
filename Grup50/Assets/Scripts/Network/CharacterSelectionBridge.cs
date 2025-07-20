@@ -117,19 +117,64 @@ public class CharacterSelectionBridge : NetworkBehaviour
     
     private void ApplyCharacterDataToPlayer(string playerGuid, CharacterData characterData)
     {
+        if (!IsServer) return;
+        
         // Find all CharacterLoader components in the scene
         var characterLoaders = FindObjectsByType<CharacterLoader>(FindObjectsSortMode.None);
         
         foreach (var loader in characterLoaders)
         {
-            // Check if this CharacterLoader belongs to the player with the given GUID
-            // This is a simplified approach - in a real game you'd have proper player identification
-            
-            if (loader.IsOwner && loader.IsLocalPlayer)
+            // Get the player session data to match GUID with NetworkObject owner
+            if (playerSessionData != null)
             {
-                // Apply the character data
-                loader.LoadCharacter(characterData);
-                Debug.Log($"Applied character data {characterData.characterName} to player {playerGuid}");
+                var session = playerSessionData.GetPlayerSession(playerGuid);
+                if (session.HasValue)
+                {
+                    // Get the NetworkObject and check if it belongs to this player
+                    var networkObject = loader.GetComponent<NetworkObject>();
+                    if (networkObject != null)
+                    {
+                        // Use client ID mapping through NetworkManager
+                        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+                        {
+                            if (client.PlayerObject == networkObject)
+                            {
+                                // Found the matching player's character loader
+                                ApplyCharacterToPlayerClientRpc(characterData.characterID, new ClientRpcParams
+                                {
+                                    Send = new ClientRpcSendParams
+                                    {
+                                        TargetClientIds = new ulong[] { client.ClientId }
+                                    }
+                                });
+                                Debug.Log($"Applied character data {characterData.characterName} to player {playerGuid} (ClientID: {client.ClientId})");
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Debug.LogWarning($"Could not find CharacterLoader for player {playerGuid}");
+    }
+    
+    [ClientRpc]
+    private void ApplyCharacterToPlayerClientRpc(int characterId, ClientRpcParams clientRpcParams = default)
+    {
+        // On the client side, find the local player's CharacterLoader and apply the character
+        var characterLoaders = FindObjectsByType<CharacterLoader>(FindObjectsSortMode.None);
+        
+        foreach (var loader in characterLoaders)
+        {
+            if (loader.IsOwner)
+            {
+                var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
+                if (characterData != null)
+                {
+                    loader.LoadCharacter(characterData);
+                    Debug.Log($"[CLIENT] Applied character {characterData.characterName} to local player");
+                }
                 break;
             }
         }

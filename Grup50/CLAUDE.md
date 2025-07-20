@@ -10,6 +10,45 @@ This is a Unity 3D multiplayer game project built using:
 
 ## Key Project Structure
 
+### Player Prefab Information
+**IMPORTANT**: The main player prefab used in this project is `Assets/CharacterRelated/Prefabs/NewBaseCharacter.prefab`
+- This prefab contains all necessary components: CharacterController, PlayerInput, NetworkObject, ThirdPersonController, StarterAssetsInputs
+- Always reference this prefab when working with character systems
+- Other prefabs like PlayerPrefabEmpty or PlayerCapsule are NOT the primary prefabs used in gameplay
+
+### Character Visual System
+**OPTIMIZED**: The CharacterLoader system uses **Same-Skeleton Mesh Replacement** for maximum efficiency and animation compatibility:
+- **Single Prefab Spawning**: SpawnManager always spawns the same `NewBaseCharacter` prefab
+- **Skeletal Mesh Replacement**: CharacterData contains only skeletal mesh references (NO prefabs)
+- **Same Skeleton Structure**: All characters share identical bone structure = perfect animation compatibility
+- **Problem Solved**: No more nested character spawning or duplicate components
+
+#### Same-Skeleton System Architecture:
+1. **SpawnManager**: Spawns `NewBaseCharacter` prefab (always the same)
+2. **CharacterData**: Contains only `skeletalMesh`, `materials`, `animatorController`
+3. **CharacterLoader**: Replaces only the `SkinnedMeshRenderer.sharedMesh`
+4. **Animation Compatibility**: Same skeleton = all animations work perfectly
+
+#### Creating Character Meshes:
+1. **Import your character model** (FBX with mesh that uses the SAME skeleton structure)
+2. **Extract the mesh** from the imported model
+3. **Assign to CharacterData.skeletalMesh**
+4. **CRITICAL**: Mesh MUST have identical bone count and structure as base character
+5. **Validation**: System automatically validates bone count compatibility
+
+#### Benefits of Same-Skeleton System:
+- ✅ **No Nested Spawning**: Only one character prefab ever spawned
+- ✅ **Perfect Animation Compatibility**: Same bones = all animations work
+- ✅ **High Performance**: No prefab instantiation, only mesh swapping
+- ✅ **Simple Data Structure**: Just mesh references, no complex prefabs
+- ✅ **Network Efficient**: Minimal data changes for character switching
+
+#### Troubleshooting Same-Skeleton System:
+- **Error: "Bone count mismatch"** → Ensure your mesh uses the exact same skeleton structure
+- **Animations not working**: Verify the mesh was rigged to the same skeleton
+- **Character not visible**: Check the skeletal mesh is properly assigned to CharacterData
+- **Bounds issues**: System automatically fixes bounds center and size
+
 ### Core Scripts
 - `Assets/StarterAssets/ThirdPersonController/Scripts/ThirdPersonController.cs` - Modified from Starter Assets to inherit from `NetworkBehaviour` with ownership checks
 - `Assets/Scripts/Player/PlayerMovement.cs` - Custom network movement implementation with NetworkVariable<Vector3> for position synchronization

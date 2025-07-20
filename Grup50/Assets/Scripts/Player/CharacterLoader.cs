@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 using StarterAssets;
@@ -58,40 +59,22 @@ public class CharacterLoader : NetworkBehaviour
         if (PlayerSessionData.Instance != null)
         {
             PlayerSessionData.Instance.OnPlayerCharacterChanged += OnPlayerCharacterChangedInSession;
-            
-            // Load character from session data if we're the owner
-            if (IsOwner)
-            {
-                var currentSession = PlayerSessionData.Instance.GetCurrentPlayerSession();
-                if (currentSession.HasValue && currentSession.Value.selectedCharacterId != 0)
-                {
-                    Debug.Log($"CharacterLoader: Loading character {currentSession.Value.selectedCharacterId} from session data");
-                    LoadCharacterByID(currentSession.Value.selectedCharacterId);
-                }
-            }
         }
         
-        // Load character if we already have data in network variable
+        // For character loading, prioritize external systems over multiple attempts
+        // This prevents race conditions from multiple loading sources
+        
+        // Only load character if we already have a synchronized network variable value
         if (selectedCharacterID.Value != -1)
         {
+            Debug.Log($"CharacterLoader: Loading character {selectedCharacterID.Value} from synchronized network variable");
             LoadCharacterByID(selectedCharacterID.Value);
         }
         
-        // Also check if CharacterSelectionBridge has data for this player
-        if (CharacterSelectionBridge.Instance != null && IsOwner)
-        {
-            var localSession = PlayerSessionData.Instance?.GetCurrentPlayerSession();
-            if (localSession.HasValue)
-            {
-                string playerGuid = localSession.Value.playerId.ToString();
-                int characterSelection = CharacterSelectionBridge.Instance.GetPlayerCharacterSelection(playerGuid);
-                if (characterSelection != -1)
-                {
-                    Debug.Log($"CharacterLoader: Loading character {characterSelection} from bridge data");
-                    LoadCharacterByID(characterSelection);
-                }
-            }
-        }
+        // NOTE: Character loading from session data and bridge is now handled by:
+        // 1. SpawnManager after spawning
+        // 2. SceneTransitionManager after scene load
+        // This eliminates race conditions from multiple loading attempts
     }
     
     public override void OnNetworkDespawn()
@@ -220,32 +203,23 @@ public class CharacterLoader : NetworkBehaviour
     /// <param name="characterData">Character data containing visual information</param>
     private void ApplyVisualChanges(CharacterData characterData)
     {
-        // CRITICAL: For different skeletons, always use complete prefab replacement
-        // This ensures the skeleton and mesh are properly matched
-        if (characterData.CharacterPrefab != null && characterMeshParent != null)
+        // OPTIMIZED: Use skeletal mesh replacement for same-skeleton characters
+        // This is the most efficient method and maintains perfect animation compatibility
+        if (characterData.skeletalMesh != null)
         {
-            Debug.Log($"CharacterLoader: Using complete prefab replacement for {characterData.characterName}");
-            ReplacePrefab(characterData);
-        }
-        // DEPRECATED: Skeletal mesh replacement only works for SAME skeleton structure
-        // This approach is problematic for different characters with different bone structures
-        else if (characterData.skeletalMesh != null)
-        {
-            Debug.LogWarning($"CharacterLoader: Using skeletal mesh replacement for {characterData.characterName}. " +
-                           "This only works if the new mesh uses the SAME skeleton structure as the base character. " +
-                           "For different skeletons, use CharacterPrefab instead.");
+            Debug.Log($"CharacterLoader: Using skeletal mesh replacement for {characterData.characterName} (same skeleton system)");
             ReplaceSkeletalMesh(characterData);
         }
         else
         {
-            Debug.LogError($"CharacterLoader: No CharacterPrefab or skeletalMesh specified for {characterData.characterName}. " +
-                         "For different characters, you MUST provide a CharacterPrefab with the complete skeleton + mesh.");
+            Debug.LogError($"CharacterLoader: No skeletalMesh specified for {characterData.characterName}. " +
+                         "You MUST provide a skeletal mesh that uses the same skeleton structure for character replacement.");
             
             // For debugging: Log current character data state
             Debug.LogError($"CharacterLoader: CharacterData debug info for {characterData.characterName}:");
-            Debug.LogError($"  - CharacterPrefab: {(characterData.characterPrefab != null ? characterData.characterPrefab.name : "NULL")}");
             Debug.LogError($"  - SkeletalMesh: {(characterData.skeletalMesh != null ? characterData.skeletalMesh.name : "NULL")}");
             Debug.LogError($"  - AnimatorController: {(characterData.animatorController != null ? characterData.animatorController.name : "NULL")}");
+            Debug.LogError($"  - Validation: {characterData.ValidationError}");
             
             return;
         }
@@ -276,96 +250,6 @@ public class CharacterLoader : NetworkBehaviour
         }
     }
     
-    /// <summary>
-    /// Replaces the entire character prefab (includes complete skeleton replacement)
-    /// </summary>
-    private void ReplacePrefab(CharacterData characterData)
-    {
-        Debug.Log($"CharacterLoader: Starting complete prefab replacement for {characterData.characterName}");
-        Debug.Log($"CharacterLoader: Removing existing skeleton and mesh...");
-        
-        // Preserve the PlayerCameraRoot (Cinemachine camera target) during character replacement
-        GameObject playerCameraRoot = null;
-        Transform cameraRootTransform = null;
-        
-        // Find and temporarily store the PlayerCameraRoot
-        for (int i = 0; i < characterMeshParent.childCount; i++)
-        {
-            GameObject child = characterMeshParent.GetChild(i).gameObject;
-            if (child.name == "PlayerCameraRoot")
-            {
-                playerCameraRoot = child;
-                cameraRootTransform = child.transform;
-                Debug.Log($"CharacterLoader: Found PlayerCameraRoot, preserving it during replacement");
-                break;
-            }
-        }
-        
-        // Temporarily reparent the PlayerCameraRoot to avoid destruction
-        if (playerCameraRoot != null)
-        {
-            playerCameraRoot.transform.SetParent(null);
-        }
-        
-        // Remove existing character mesh/model (this includes the old skeleton)
-        for (int i = characterMeshParent.childCount - 1; i >= 0; i--)
-        {
-            GameObject child = characterMeshParent.GetChild(i).gameObject;
-            Debug.Log($"CharacterLoader: Destroying old character component: {child.name}");
-            
-            if (Application.isPlaying)
-                Destroy(child);
-            else
-                DestroyImmediate(child);
-        }
-        
-        Debug.Log($"CharacterLoader: Instantiating new character prefab with new skeleton...");
-        
-        // Instantiate new character prefab (this includes the new skeleton)
-        GameObject newCharacter = Instantiate(characterData.CharacterPrefab, characterMeshParent);
-        newCharacter.transform.localPosition = Vector3.zero;
-        newCharacter.transform.localRotation = Quaternion.identity;
-        newCharacter.transform.localScale = characterData.characterScale;
-        
-        Debug.Log($"CharacterLoader: New character instantiated: {newCharacter.name}");
-        
-        // Restore the PlayerCameraRoot after character replacement
-        if (playerCameraRoot != null)
-        {
-            playerCameraRoot.transform.SetParent(characterMeshParent);
-            playerCameraRoot.transform.localPosition = new Vector3(0, 1.375f, 0);
-            playerCameraRoot.transform.localRotation = Quaternion.identity;
-            playerCameraRoot.transform.localScale = Vector3.one;
-            Debug.Log($"CharacterLoader: Restored PlayerCameraRoot after character replacement");
-        }
-        
-        // Update animator reference if the new prefab has one
-        Animator newAnimator = newCharacter.GetComponentInChildren<Animator>();
-        if (newAnimator != null)
-        {
-            characterAnimator = newAnimator;
-            Debug.Log($"CharacterLoader: Found new animator in prefab: {newAnimator.name}");
-            
-            // Apply the character's animator controller if specified
-            if (characterData.animatorController != null)
-            {
-                characterAnimator.runtimeAnimatorController = characterData.animatorController;
-                Debug.Log($"CharacterLoader: Applied animator controller: {characterData.animatorController.name}");
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"CharacterLoader: No animator found in new prefab {characterData.CharacterPrefab.name}");
-        }
-        
-        // Fix any SkinnedMeshRenderer issues in the new prefab
-        FixSkinnedMeshRenderers(newCharacter);
-        
-        // Log skeleton information
-        LogSkeletonInfo(newCharacter);
-        
-        Debug.Log($"CharacterLoader: ✅ Successfully replaced entire prefab (skeleton + mesh) with {characterData.CharacterPrefab.name}");
-    }
     
     /// <summary>
     /// Logs information about the skeleton structure for debugging
@@ -426,16 +310,15 @@ public class CharacterLoader : NetworkBehaviour
     }
     
     /// <summary>
-    /// Replaces skeletal mesh on SkinnedMeshRenderer (Unity's skeletal mesh equivalent)
+    /// Replaces skeletal mesh on SkinnedMeshRenderer (OPTIMIZED for same skeleton system)
     /// </summary>
     private void ReplaceSkeletalMesh(CharacterData characterData)
     {
-        // Look for SkinnedMeshRenderer in the character mesh parent (Geometry) and its children
+        // Look for SkinnedMeshRenderer in the character mesh parent and its children
         SkinnedMeshRenderer[] skinnedRenderers = null;
         
         if (characterMeshParent != null)
         {
-            // First try to find in the characterMeshParent and its children
             skinnedRenderers = characterMeshParent.GetComponentsInChildren<SkinnedMeshRenderer>();
         }
         
@@ -445,6 +328,12 @@ public class CharacterLoader : NetworkBehaviour
             skinnedRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
         }
         
+        if (skinnedRenderers.Length == 0)
+        {
+            Debug.LogError($"CharacterLoader: No SkinnedMeshRenderer found for character {characterData.characterName}");
+            return;
+        }
+        
         foreach (SkinnedMeshRenderer renderer in skinnedRenderers)
         {
             if (renderer == null) continue;
@@ -452,51 +341,55 @@ public class CharacterLoader : NetworkBehaviour
             // Check if this renderer should be replaced
             if (ShouldReplaceRenderer(renderer, characterData.targetRendererNames))
             {
-                // Store original bone setup for non-optimized meshes
+                // Store original bone setup (same skeleton = bones are identical)
                 Transform[] originalBones = renderer.bones;
                 Transform originalRootBone = renderer.rootBone;
+                
+                Debug.Log($"CharacterLoader: Replacing mesh on {renderer.name} with {characterData.skeletalMesh.name}");
+                
+                // Validate mesh compatibility first
+                if (!ValidateSameSkeleton(renderer, characterData.skeletalMesh))
+                {
+                    Debug.LogError($"CharacterLoader: Skeletal mesh {characterData.skeletalMesh.name} is not compatible with the same skeleton system");
+                    continue;
+                }
                 
                 // Replace the skeletal mesh
                 renderer.sharedMesh = characterData.skeletalMesh;
                 
-                // CRITICAL FIX: Reassign bones for non-optimized meshes
-                if (!characterData.useOptimizedMesh && originalBones != null && originalBones.Length > 0)
+                // OPTIMIZED: Since all characters use the same skeleton, bones are compatible
+                // Keep the original bone setup for perfect animation compatibility
+                if (originalBones != null && originalBones.Length > 0)
                 {
-                    // For non-optimized meshes, reassign the bones array
                     renderer.bones = originalBones;
                     renderer.rootBone = originalRootBone;
-                    
-                    Debug.Log($"CharacterLoader: Reassigned {originalBones.Length} bones to {renderer.name}");
-                }
-                else if (characterData.useOptimizedMesh)
-                {
-                    // For optimized meshes, clear bones array (Unity will handle automatically)
-                    renderer.bones = new Transform[0];
-                    Debug.Log($"CharacterLoader: Using optimized mesh for {renderer.name}, bones cleared");
+                    Debug.Log($"CharacterLoader: Preserved {originalBones.Length} bones for {renderer.name} (same skeleton system)");
                 }
                 
-                // Update bounds to prevent culling issues
+                // Update bounds to match new mesh
                 if (renderer.sharedMesh != null)
                 {
                     renderer.localBounds = renderer.sharedMesh.bounds;
                     
-                    // CRITICAL FIX: Set the center of bounds to origin if it's offset
+                    // Reset bounds center to origin if needed
                     var bounds = renderer.localBounds;
-                    if (bounds.center != Vector3.zero)
+                    if (bounds.center.magnitude > 0.1f)
                     {
                         bounds.center = Vector3.zero;
                         renderer.localBounds = bounds;
-                        Debug.Log($"CharacterLoader: Reset bounds center to origin for {renderer.name}");
+                        Debug.Log($"CharacterLoader: Reset bounds center for {renderer.name}");
                     }
                 }
                 
-                // Force update the renderer to ensure visibility
+                // Force renderer refresh to ensure proper display
                 renderer.enabled = false;
                 renderer.enabled = true;
                 
-                Debug.Log($"CharacterLoader: Successfully replaced skeletal mesh on {renderer.name} (found in {renderer.transform.parent?.name})");
+                Debug.Log($"CharacterLoader: ✅ Successfully replaced skeletal mesh on {renderer.name}");
             }
         }
+        
+        Debug.Log($"CharacterLoader: ✅ Skeletal mesh replacement completed for {characterData.characterName}");
     }
     
     /// <summary>
@@ -563,26 +456,29 @@ public class CharacterLoader : NetworkBehaviour
     }
     
     /// <summary>
-    /// Validates bone mapping for non-optimized meshes
+    /// Validates that skeletal mesh is compatible with same-skeleton system
     /// </summary>
-    private void ValidateBoneMapping(SkinnedMeshRenderer renderer, Transform[] originalBones)
+    private bool ValidateSameSkeleton(SkinnedMeshRenderer renderer, Mesh newMesh)
     {
-        // For advanced users: implement bone remapping logic here
-        // This ensures that the new mesh's bone structure matches the original
-        // For now, we'll just log a warning if bone counts don't match
-        
-        if (renderer.sharedMesh != null && renderer.sharedMesh.bindposes != null)
+        if (newMesh == null || newMesh.bindposes == null)
         {
-            int newBoneCount = renderer.sharedMesh.bindposes.Length;
-            int originalBoneCount = originalBones.Length;
-            
-            if (newBoneCount != originalBoneCount)
-            {
-                Debug.LogWarning($"CharacterLoader: Bone count mismatch on {renderer.name}. " +
-                               $"Original: {originalBoneCount}, New: {newBoneCount}. " +
-                               $"Consider using optimized meshes or implementing bone remapping.");
-            }
+            Debug.LogWarning($"CharacterLoader: New mesh has no bind poses");
+            return false;
         }
+        
+        int newBoneCount = newMesh.bindposes.Length;
+        int originalBoneCount = renderer.bones.Length;
+        
+        if (newBoneCount != originalBoneCount)
+        {
+            Debug.LogWarning($"CharacterLoader: Bone count mismatch on {renderer.name}. " +
+                           $"Original: {originalBoneCount}, New: {newBoneCount}. " +
+                           $"Same skeleton system requires identical bone structures.");
+            return false;
+        }
+        
+        Debug.Log($"CharacterLoader: ✅ Skeletal mesh validation passed - {newBoneCount} bones match");
+        return true;
     }
     
     /// <summary>
