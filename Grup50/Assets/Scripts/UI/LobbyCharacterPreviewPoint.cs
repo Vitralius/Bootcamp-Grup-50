@@ -22,7 +22,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     [SerializeField] private Renderer readyIndicatorRenderer;
     
     private GameObject currentCharacterPreview;
-    private PreviewCharacterLoader previewCharacterLoader;
+    private UltraSimpleMeshSwapper characterLoader;
     private PlayerSessionData playerSessionData;
     private string assignedPlayerGuid;
     private PlayerSessionInfo? currentPlayerInfo;
@@ -114,18 +114,8 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             Transform spawnTransform = characterSpawnPoint != null ? characterSpawnPoint : transform;
             currentCharacterPreview = Instantiate(baseCharacterPrefab, spawnTransform.position, spawnTransform.rotation, transform);
             
-            // Remove any network components from preview (it's just visual)
-            var networkComponents = currentCharacterPreview.GetComponentsInChildren<NetworkBehaviour>();
-            foreach (var netComp in networkComponents)
-            {
-                DestroyImmediate(netComp);
-            }
-            
-            var networkObject = currentCharacterPreview.GetComponent<NetworkObject>();
-            if (networkObject != null)
-            {
-                DestroyImmediate(networkObject);
-            }
+            // CRITICAL: Remove ALL network components from preview (it's just visual)
+            RemoveAllNetworkComponents(currentCharacterPreview);
             
             // Disable movement components (preview should be static)
             var controller = currentCharacterPreview.GetComponent<CharacterController>();
@@ -134,14 +124,14 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
                 controller.enabled = false;
             }
             
-            // Remove any movement scripts to keep it simple (but preserve PreviewCharacterLoader)
+            // Remove any movement scripts to keep it simple (but preserve UltraSimpleMeshSwapper)
             var movementScripts = currentCharacterPreview.GetComponents<MonoBehaviour>();
             foreach (var script in movementScripts)
             {
                 if (script.GetType().Name.Contains("Controller") || script.GetType().Name.Contains("Movement"))
                 {
-                    // Don't disable PreviewCharacterLoader - we need it!
-                    if (script.GetType() != typeof(PreviewCharacterLoader))
+                    // Don't disable UltraSimpleMeshSwapper - we need it!
+                    if (script.GetType() != typeof(UltraSimpleMeshSwapper))
                     {
                         script.enabled = false;
                     }
@@ -154,17 +144,23 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             return;
         }
         
-        // Get or add PreviewCharacterLoader
-        previewCharacterLoader = currentCharacterPreview.GetComponent<PreviewCharacterLoader>();
-        if (previewCharacterLoader == null)
+        // Get or add UltraSimpleMeshSwapper with proper initialization order
+        characterLoader = currentCharacterPreview.GetComponent<UltraSimpleMeshSwapper>();
+        if (characterLoader == null)
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] PreviewCharacterLoader not found, adding new one");
-            previewCharacterLoader = currentCharacterPreview.AddComponent<PreviewCharacterLoader>();
+            Debug.Log($"[PREVIEW-{previewPointIndex}] UltraSimpleMeshSwapper not found, adding new one");
+            characterLoader = currentCharacterPreview.AddComponent<UltraSimpleMeshSwapper>();
         }
         else
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Found existing PreviewCharacterLoader");
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Found existing UltraSimpleMeshSwapper");
         }
+        
+        // CRITICAL: Set preview mode BEFORE any other operations
+        characterLoader.SetPreviewMode(true);
+        
+        // Wait a frame to ensure component is properly initialized
+        StartCoroutine(DelayedCharacterLoaderSetup());
         
         // Debug the component structure
         var allRenderers = currentCharacterPreview.GetComponentsInChildren<Renderer>();
@@ -174,7 +170,32 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             Debug.Log($"  - {renderer.GetType().Name}: {renderer.name} (enabled: {renderer.enabled})");
         }
         
-        Debug.Log($"[PREVIEW-{previewPointIndex}] Character preview setup complete: {currentCharacterPreview.name}");
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Character preview setup initiated: {currentCharacterPreview.name}");
+    }
+    
+    /// <summary>
+    /// Delayed setup to ensure proper initialization order
+    /// </summary>
+    private System.Collections.IEnumerator DelayedCharacterLoaderSetup()
+    {
+        // Wait one frame to ensure all components are initialized
+        yield return null;
+        
+        if (characterLoader != null)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Character loader setup complete after delay");
+            
+            // If we already have a player assigned, try to load their character
+            if (!string.IsNullOrEmpty(assignedPlayerGuid) && currentPlayerInfo.HasValue)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Reloading character {currentPlayerInfo.Value.selectedCharacterId} after setup delay");
+                characterLoader.LoadCharacterByID(currentPlayerInfo.Value.selectedCharacterId);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PREVIEW-{previewPointIndex}] Character loader is null after delayed setup!");
+        }
     }
     
     private void TryAssignLocalPlayer()
@@ -399,7 +420,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     
     private void UpdatePreviewForPlayer(PlayerSessionInfo playerInfo)
     {
-        if (previewCharacterLoader == null) return;
+        if (characterLoader == null) return;
         
         currentPlayerInfo = playerInfo;
         
@@ -428,30 +449,67 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             }
         }
         
-        // Load character data using PreviewCharacterLoader
-        if (CharacterRegistry.Instance != null)
+        // Load character data using UltraSimpleMeshSwapper
+        if (characterLoader != null)
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Loading character {playerInfo.selectedCharacterId} for player {playerInfo.playerName}");
-            previewCharacterLoader.LoadCharacterByID(playerInfo.selectedCharacterId);
+            if (CharacterRegistry.Instance != null)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Loading character {playerInfo.selectedCharacterId} for player {playerInfo.playerName}");
+                bool success = characterLoader.LoadCharacterByID(playerInfo.selectedCharacterId);
+                
+                if (!success)
+                {
+                    Debug.LogWarning($"[PREVIEW-{previewPointIndex}] Character loading failed, will retry...");
+                    // The UltraSimpleMeshSwapper will handle retries automatically
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[PREVIEW-{previewPointIndex}] CharacterRegistry not found, retrying in 1s...");
+                // Retry after CharacterRegistry might be ready
+                StartCoroutine(RetryCharacterLoad(playerInfo.selectedCharacterId, 3));
+            }
         }
         else
         {
-            Debug.LogWarning($"[PREVIEW-{previewPointIndex}] CharacterRegistry not found, cannot load character preview");
-            // Still try to show something
-            if (previewCharacterLoader != null)
-                previewCharacterLoader.ResetToDefault();
+            Debug.LogError($"[PREVIEW-{previewPointIndex}] Character loader is null! Cannot load character preview.");
         }
         
         Debug.Log($"Updated preview point {previewPointIndex} for player {playerInfo.playerName} with character {playerInfo.selectedCharacterId}");
+    }
+    
+    /// <summary>
+    /// Retry character loading when dependencies aren't ready
+    /// </summary>
+    private System.Collections.IEnumerator RetryCharacterLoad(int characterId, int maxRetries)
+    {
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            yield return new WaitForSeconds(1f);
+            
+            if (characterLoader != null && CharacterRegistry.Instance != null)
+            {
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Retrying character load {characterId} (attempt {attempt + 1})");
+                bool success = characterLoader.LoadCharacterByID(characterId);
+                
+                if (success)
+                {
+                    Debug.Log($"[PREVIEW-{previewPointIndex}] Character load retry successful!");
+                    yield break;
+                }
+            }
+        }
+        
+        Debug.LogError($"[PREVIEW-{previewPointIndex}] Failed to load character {characterId} after {maxRetries} retry attempts");
     }
     
     private void SetPreviewVisible(bool visible)
     {
         Debug.Log($"[PREVIEW-{previewPointIndex}] Setting visibility: {visible}");
         
-        if (previewCharacterLoader != null)
+        if (characterLoader != null)
         {
-            previewCharacterLoader.SetVisible(visible);
+            characterLoader.SetVisible(visible);
         }
         
         if (playerNameplate != null)
@@ -532,10 +590,10 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         {
             Debug.Log($"[PREVIEW-{previewPointIndex}] ✅ MATCH! This character change is for us!");
             
-            if (previewCharacterLoader != null)
+            if (characterLoader != null)
             {
                 Debug.Log($"[PREVIEW-{previewPointIndex}] 🔄 Loading character {characterId} for assigned player");
-                previewCharacterLoader.LoadCharacterByID(characterId);
+                characterLoader.LoadCharacterByID(characterId);
                 Debug.Log($"[PREVIEW-{previewPointIndex}] 🎯 Character loading completed");
                 
                 // Force visibility update
@@ -549,7 +607,7 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             }
             else
             {
-                Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ PreviewCharacterLoader is null!");
+                Debug.LogError($"[PREVIEW-{previewPointIndex}] ❌ Character loader is null!");
                 Debug.LogError($"[PREVIEW-{previewPointIndex}] 🔍 Current character preview object: {(currentCharacterPreview != null ? currentCharacterPreview.name : "NULL")}");
             }
         }
@@ -646,6 +704,94 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
     public PlayerSessionInfo? GetCurrentPlayerInfo()
     {
         return currentPlayerInfo;
+    }
+    
+    /// <summary>
+    /// Removes all network components from a preview object to prevent Netcode warnings
+    /// </summary>
+    private void RemoveAllNetworkComponents(GameObject previewObject)
+    {
+        if (previewObject == null) return;
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Removing network components from {previewObject.name}");
+        
+        // Remove NetworkBehaviour components (like ClientNetworkAnimator, ClientNetworkTransform)
+        var networkBehaviours = previewObject.GetComponentsInChildren<NetworkBehaviour>();
+        foreach (var netBehaviour in networkBehaviours)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Removing NetworkBehaviour: {netBehaviour.GetType().Name}");
+            DestroyImmediate(netBehaviour);
+        }
+        
+        // Remove NetworkObject components
+        var networkObjects = previewObject.GetComponentsInChildren<NetworkObject>();
+        foreach (var netObject in networkObjects)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Removing NetworkObject from {netObject.name}");
+            DestroyImmediate(netObject);
+        }
+        
+        // Remove any remaining network-related components by name
+        var allComponents = previewObject.GetComponentsInChildren<Component>();
+        foreach (var component in allComponents)
+        {
+            if (component != null && 
+                (component.GetType().Name.Contains("Network") || 
+                 component.GetType().Name.Contains("Client") ||
+                 component.GetType().Namespace != null && component.GetType().Namespace.Contains("Unity.Netcode")))
+            {
+                // Don't remove critical components
+                if (!(component is Transform || component is Renderer || component is Animator || component is SkinnedMeshRenderer))
+                {
+                    Debug.Log($"[PREVIEW-{previewPointIndex}] Removing network-related component: {component.GetType().Name}");
+                    DestroyImmediate(component);
+                }
+            }
+        }
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Network component removal complete for {previewObject.name}");
+    }
+    
+    /// <summary>
+    /// Public method to ensure character loader is created and ready
+    /// Used by MainMenuUI fallback system
+    /// </summary>
+    public UltraSimpleMeshSwapper GetOrCreateCharacterLoader()
+    {
+        if (characterLoader == null && currentCharacterPreview != null)
+        {
+            Debug.Log($"[PREVIEW-{previewPointIndex}] GetOrCreateCharacterLoader: Creating missing character loader");
+            
+            // First check if component already exists
+            characterLoader = currentCharacterPreview.GetComponent<UltraSimpleMeshSwapper>();
+            if (characterLoader == null)
+            {
+                // Check if the object has a SkinnedMeshRenderer before adding the component
+                var renderer = currentCharacterPreview.GetComponentInChildren<SkinnedMeshRenderer>();
+                if (renderer != null)
+                {
+                    characterLoader = currentCharacterPreview.AddComponent<UltraSimpleMeshSwapper>();
+                    Debug.Log($"[PREVIEW-{previewPointIndex}] Added UltraSimpleMeshSwapper to {currentCharacterPreview.name}");
+                }
+                else
+                {
+                    Debug.LogError($"[PREVIEW-{previewPointIndex}] Cannot add UltraSimpleMeshSwapper - no SkinnedMeshRenderer found on {currentCharacterPreview.name}");
+                    return null;
+                }
+            }
+            
+            if (characterLoader != null)
+            {
+                characterLoader.SetPreviewMode(true);
+                Debug.Log($"[PREVIEW-{previewPointIndex}] Character loader ready with preview mode enabled");
+            }
+        }
+        else if (currentCharacterPreview == null)
+        {
+            Debug.LogError($"[PREVIEW-{previewPointIndex}] Cannot create character loader - currentCharacterPreview is null");
+        }
+        
+        return characterLoader;
     }
     
     public override void OnDestroy()

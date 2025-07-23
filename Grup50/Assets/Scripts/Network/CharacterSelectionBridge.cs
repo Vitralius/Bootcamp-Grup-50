@@ -3,7 +3,7 @@ using Unity.Netcode;
 using Unity.Services.Authentication;
 
 /// <summary>
-/// Bridges character selection data from lobby (PlayerSessionData) to gameplay (CharacterLoader).
+/// Bridges character selection data from lobby (PlayerSessionData) to gameplay (UltraSimpleMeshSwapper).
 /// Handles transferring character selections when transitioning from lobby to game.
 /// </summary>
 public class CharacterSelectionBridge : NetworkBehaviour
@@ -94,7 +94,7 @@ public class CharacterSelectionBridge : NetworkBehaviour
                 
                 // Here you would typically:
                 // 1. Find the player's NetworkObject in the game world
-                // 2. Get the CharacterLoader component
+                // 2. Get the UltraSimpleMeshSwapper component
                 // 3. Apply the character data
                 
                 // For now, we'll just log this information
@@ -119,8 +119,8 @@ public class CharacterSelectionBridge : NetworkBehaviour
     {
         if (!IsServer) return;
         
-        // Find all CharacterLoader components in the scene
-        var characterLoaders = FindObjectsByType<CharacterLoader>(FindObjectsSortMode.None);
+        // Find all UltraSimpleMeshSwapper components in the scene
+        var characterLoaders = FindObjectsByType<UltraSimpleMeshSwapper>(FindObjectsSortMode.None);
         
         foreach (var loader in characterLoaders)
         {
@@ -156,18 +156,19 @@ public class CharacterSelectionBridge : NetworkBehaviour
             }
         }
         
-        Debug.LogWarning($"Could not find CharacterLoader for player {playerGuid}");
+        Debug.LogWarning($"Could not find UltraSimpleMeshSwapper for player {playerGuid}");
     }
     
     [ClientRpc]
     private void ApplyCharacterToPlayerClientRpc(int characterId, ClientRpcParams clientRpcParams = default)
     {
-        // On the client side, find the local player's CharacterLoader and apply the character
-        var characterLoaders = FindObjectsByType<CharacterLoader>(FindObjectsSortMode.None);
+        // On the client side, find the local player's UltraSimpleMeshSwapper and apply the character
+        var characterLoaders = FindObjectsByType<UltraSimpleMeshSwapper>(FindObjectsSortMode.None);
         
         foreach (var loader in characterLoaders)
         {
-            if (loader.IsOwner)
+            var networkBehaviour = loader.GetComponent<NetworkBehaviour>();
+            if (networkBehaviour != null && networkBehaviour.IsOwner)
             {
                 var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
                 if (characterData != null)

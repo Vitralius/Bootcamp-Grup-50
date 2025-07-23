@@ -870,11 +870,12 @@ public class MainMenuUI : MonoBehaviour
             {
                 Debug.Log($"🔄 MAINMENU: Found potential local preview point: {previewPoint.name}");
                 
-                // Get the PreviewCharacterLoader directly
-                var previewLoader = previewPoint.GetComponentInChildren<PreviewCharacterLoader>();
+                // First try to get or create the character loader through the preview point
+                Debug.Log($"🔄 MAINMENU: Getting or creating character loader through LobbyCharacterPreviewPoint");
+                var previewLoader = previewPoint.GetOrCreateCharacterLoader();
                 if (previewLoader != null)
                 {
-                    Debug.Log($"🔄 MAINMENU: Directly loading character {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+                    Debug.Log($"🔄 MAINMENU: Found existing UltraSimpleMeshSwapper, loading character");
                     previewLoader.LoadCharacterByID(currentSelectedCharacter.characterID);
                     previewLoader.SetVisible(true);
                     Debug.Log($"🔄 MAINMENU: Fallback character loading completed");
@@ -882,12 +883,60 @@ public class MainMenuUI : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"🔄 MAINMENU: No PreviewCharacterLoader found on {previewPoint.name}");
+                    Debug.LogWarning($"🔄 MAINMENU: No UltraSimpleMeshSwapper found on {previewPoint.name}, checking for character preview objects...");
+                    
+                    // Try to find a character preview object that we can add the component to
+                    var characterPreviewObjects = previewPoint.GetComponentsInChildren<Transform>();
+                    foreach (var obj in characterPreviewObjects)
+                    {
+                        // Look for objects that might be character models (have SkinnedMeshRenderer)
+                        var skinnedRenderer = obj.GetComponent<SkinnedMeshRenderer>();
+                        if (skinnedRenderer != null)
+                        {
+                            Debug.Log($"🔄 MAINMENU: Found character object {obj.name} with SkinnedMeshRenderer, adding UltraSimpleMeshSwapper");
+                            previewLoader = obj.gameObject.AddComponent<UltraSimpleMeshSwapper>();
+                            previewLoader.SetPreviewMode(true);
+                            
+                            // Wait a frame for initialization then load character
+                            StartCoroutine(DelayedFallbackLoad(previewLoader, currentSelectedCharacter.characterID));
+                            return;
+                        }
+                    }
+                    
+                    Debug.LogWarning($"🔄 MAINMENU: No suitable character preview object found on {previewPoint.name}");
                 }
             }
         }
         
         Debug.LogWarning($"🔄 MAINMENU: No suitable preview point found for fallback update");
+    }
+    
+    /// <summary>
+    /// Delayed loading for fallback preview when component is created dynamically
+    /// </summary>
+    private System.Collections.IEnumerator DelayedFallbackLoad(UltraSimpleMeshSwapper loader, int characterID)
+    {
+        // Wait a frame for the component to initialize
+        yield return null;
+        
+        if (loader != null)
+        {
+            Debug.Log($"🔄 MAINMENU: Loading character {characterID} after delayed initialization");
+            bool success = loader.LoadCharacterByID(characterID);
+            if (success)
+            {
+                loader.SetVisible(true);
+                Debug.Log($"🔄 MAINMENU: Delayed fallback character loading completed successfully");
+            }
+            else
+            {
+                Debug.LogWarning($"🔄 MAINMENU: Delayed fallback character loading failed");
+            }
+        }
+        else
+        {
+            Debug.LogError($"🔄 MAINMENU: Loader became null during delayed loading");
+        }
     }
     
     private void OnDestroy()

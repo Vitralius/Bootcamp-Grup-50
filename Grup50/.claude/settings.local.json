@@ -5,7 +5,10 @@
       "WebFetch(domain:docs.unity.com)",
       "Bash(rg:*)",
       "Bash(grep:*)",
-      "WebFetch(domain:docs-multiplayer.unity3d.com)"
+      "WebFetch(domain:docs-multiplayer.unity3d.com)",
+      "WebFetch(domain:docs.unity3d.com)",
+      "WebFetch(domain:discussions.unity.com)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
