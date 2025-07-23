@@ -79,6 +79,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -6559145737372320788, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
     - target: {fileID: 919132149155446097, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
       propertyPath: m_Name
       value: NewBaseCharacter
@@ -127,6 +131,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
       insertIndex: -1
       addedObject: {fileID: 4832635315499613566}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7568884433889952648}
   m_SourcePrefab: {fileID: 100100000, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
 --- !u!4 &166426818352141051 stripped
 Transform:
@@ -500,7 +507,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 649807951716550721}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2924c53e3571e394d890d9063602d45a, type: 3}
   m_Name: 
@@ -532,3 +539,28 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &7568884433889952648
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 649807951716550721}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f573e25b3405ef4885e958c4c318dc6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  isPreview: 0
+  currentCharacterData: {fileID: 11400000, guid: 259a372096d4457478add5bf6a2cbbf3, type: 2}
+  targetRenderer: {fileID: 2395007382420754172}
+  characterAnimator: {fileID: 4832635315499613566}
+  originalMesh: {fileID: -8452158422333049815, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
+  originalMaterials:
+  - {fileID: 2100000, guid: 270060d37ba4df341b845c4c7d270bfb, type: 2}
+  originalAnimatorController: {fileID: 9100000, guid: 63279d7d4e0973547839265c97f0235f, type: 2}
+--- !u!137 &2395007382420754172 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -6559145737372320788, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
+  m_PrefabInstance: {fileID: 416016932903793936}
+  m_PrefabAsset: {fileID: 0}

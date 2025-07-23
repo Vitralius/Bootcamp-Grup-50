@@ -16,41 +16,39 @@ MonoBehaviour:
   description: Simple Warrior Character
   characterIcon: {fileID: 21300000, guid: 751aa1b6637101946b2fdbb7aa27d6ad, type: 3}
   characterPreview: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
-  visualPrefab: {fileID: 649807951716550721, guid: c8dc84e8b34f88d4f9d7edad03d8949f, type: 3}
-  characterPrefab: {fileID: 649807951716550721, guid: 1ef71323ff25ced47ba4fd0028299d8c, type: 3}
-  skeletalMesh: {fileID: -8452158422333049815, guid: cb5360e5dc7019140a74e44a5800a9bd, type: 3}
+  skeletalMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
   outfitMeshes: []
   characterMaterials:
   - {fileID: 2100000, guid: dbd798135f1a2ca428074d36a2ac9ecc, type: 2}
-  animatorController: {fileID: 9100000, guid: 63279d7d4e0973547839265c97f0235f, type: 2}
+  animatorController: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
   characterScale: {x: 1, y: 1, z: 1}
   targetRendererNames: []
-  useOptimizedMesh: 1
-  moveSpeed: 2
-  sprintSpeed: 5.335
+  _sameSkeleton: 1
+  moveSpeed: 20
+  sprintSpeed: 53.335
   rotationSmoothTime: 0.12
   speedChangeRate: 10
   holdToCrouch: 1
   crouchSpeedMultiplier: 0.5
-  slideSpeedThreshold: 3
-  maxSlideSpeed: 8
-  slideDeceleration: 2
-  minSlideDuration: 0.3
+  slideSpeedThreshold: 2.5
+  maxSlideSpeed: 10
+  slideDeceleration: 7
+  minSlideDuration: 0.2
   slideJumpMomentumMultiplier: 1.2
-  slideSteeringControl: 0.3
-  slideEntryBoost: 1.3
+  slideSteeringControl: 1
+  slideEntryBoost: 1.4
   jumpHeight: 1.2
   enableDoubleJump: 1
-  maxJumps: 2
+  maxJumps: 3
   gravity: -15
-  jumpTimeout: 0.5
+  jumpTimeout: 0.3
   fallTimeout: 0.15
   crouchCameraOffset: 0.5
-  sprintCameraOffset: 0.3
-  cameraLerpSpeed: 5
-  sprintFOVIncrease: 10
-  enableSprintScreenShake: 1
-  sprintShakeIntensity: 0.3
+  sprintCameraOffset: 0.2
+  cameraLerpSpeed: 1
+  sprintFOVIncrease: 5
+  enableSprintScreenShake: 0
+  sprintShakeIntensity: 0
   groundedOffset: 0
   groundedRadius: 0.1
   topClamp: 70

@@ -94,10 +94,10 @@ public class SpawnManager : NetworkBehaviour
     
     private void ApplyCharacterSelectionToExistingPlayer(NetworkObject playerObject, ulong clientId)
     {
-        var characterLoader = playerObject.GetComponent<CharacterLoader>();
+        var characterLoader = playerObject.GetComponent<UltraSimpleMeshSwapper>();
         if (characterLoader == null)
         {
-            Debug.LogWarning($"Player {clientId} does not have CharacterLoader component!");
+            Debug.LogWarning($"Player {clientId} does not have UltraSimpleMeshSwapper component!");
             return;
         }
         
@@ -163,7 +163,7 @@ public class SpawnManager : NetworkBehaviour
                     var client = clientPair.Value;
                     if (client.PlayerObject != null)
                     {
-                        var characterLoader = client.PlayerObject.GetComponent<CharacterLoader>();
+                        var characterLoader = client.PlayerObject.GetComponent<UltraSimpleMeshSwapper>();
                         if (characterLoader != null)
                         {
                             var characterData = CharacterRegistry.Instance?.GetCharacterByID(session.selectedCharacterId);
@@ -194,12 +194,13 @@ public class SpawnManager : NetworkBehaviour
     [ClientRpc]
     private void ApplyCharacterToPlayerClientRpc(int characterId, ClientRpcParams clientRpcParams = default)
     {
-        // On the client side, find the local player's CharacterLoader and apply the character
-        var characterLoaders = FindObjectsByType<CharacterLoader>(FindObjectsSortMode.None);
+        // On the client side, find the local player's UltraSimpleMeshSwapper and apply the character
+        var characterLoaders = FindObjectsByType<UltraSimpleMeshSwapper>(FindObjectsSortMode.None);
         
         foreach (var loader in characterLoaders)
         {
-            if (loader.IsOwner)
+            var networkBehaviour = loader.GetComponent<NetworkBehaviour>();
+            if (networkBehaviour != null && networkBehaviour.IsOwner)
             {
                 var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
                 if (characterData != null)

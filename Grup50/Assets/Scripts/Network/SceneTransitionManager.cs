@@ -165,7 +165,7 @@ public class SceneTransitionManager : NetworkBehaviour
                 {
                     if (client.PlayerObject != null)
                     {
-                        var characterLoader = client.PlayerObject.GetComponent<CharacterLoader>();
+                        var characterLoader = client.PlayerObject.GetComponent<UltraSimpleMeshSwapper>();
                         if (characterLoader != null)
                         {
                             var characterData = CharacterRegistry.Instance?.GetCharacterByID(session.selectedCharacterId);
@@ -196,12 +196,13 @@ public class SceneTransitionManager : NetworkBehaviour
     [ClientRpc]
     private void ApplyCharacterToClientRpc(int characterId, ClientRpcParams clientRpcParams = default)
     {
-        // On the client side, find the local player's CharacterLoader and apply the character
-        var characterLoaders = FindObjectsByType<CharacterLoader>(FindObjectsSortMode.None);
+        // On the client side, find the local player's UltraSimpleMeshSwapper and apply the character
+        var characterLoaders = FindObjectsByType<UltraSimpleMeshSwapper>(FindObjectsSortMode.None);
         
         foreach (var loader in characterLoaders)
         {
-            if (loader.IsOwner)
+            var networkBehaviour = loader.GetComponent<NetworkBehaviour>();
+            if (networkBehaviour != null && networkBehaviour.IsOwner)
             {
                 var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
                 if (characterData != null)
