@@ -56,6 +56,10 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
+      propertyPath: m_TagString
+      value: Player
+      objectReference: {fileID: 0}
     - target: {fileID: 3406310661786125457, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       propertyPath: m_Mesh
       value: 
