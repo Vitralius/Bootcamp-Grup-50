@@ -27,7 +27,7 @@ MonoBehaviour:
   moveSpeed: 20
   sprintSpeed: 53.335
   rotationSmoothTime: 0.12
-  speedChangeRate: 10
+  speedChangeRate: 0.2
   holdToCrouch: 1
   crouchSpeedMultiplier: 0.5
   slideSpeedThreshold: 2.5
