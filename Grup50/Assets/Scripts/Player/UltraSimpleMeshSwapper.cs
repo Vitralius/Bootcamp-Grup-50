@@ -6,7 +6,7 @@ using Unity.Netcode;
 /// Replaces all complex character loading systems with one clean solution
 /// Works with "Optimize Game Objects" enabled FBX files for same-skeleton mesh replacement
 /// </summary>
-public class UltraSimpleMeshSwapper : MonoBehaviour
+public class UltraSimpleMeshSwapper : NetworkBehaviour
 {
     [Header("Target Components")]
     [SerializeField] private SkinnedMeshRenderer targetRenderer;
@@ -28,6 +28,11 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
     private CharacterData currentCharacterData;
     private bool isInitialized = false;
     
+    // CRITICAL FIX: NetworkVariable for character synchronization across scene transitions
+    private NetworkVariable<int> networkCharacterId = new NetworkVariable<int>(-1, 
+        NetworkVariableReadPermission.Everyone, 
+        NetworkVariableWritePermission.Server);
+    
     /// <summary>
     /// Gets whether this is in preview mode
     /// </summary>
@@ -44,9 +49,74 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
         Debug.Log($"CleanCharacterLoader: Awake on {gameObject.name} (Preview: {isPreviewMode})");
     }
     
+    public override void OnNetworkSpawn()
+    {
+        Debug.Log($"CleanCharacterLoader: OnNetworkSpawn called on {gameObject.name} (IsOwner: {IsOwner})");
+        
+        // CRITICAL FIX: Subscribe to NetworkVariable changes for character sync
+        networkCharacterId.OnValueChanged += OnNetworkCharacterIdChanged;
+        
+        // Initialize safely when network spawns
+        if (!isInitialized)
+        {
+            InitializeSafely();
+        }
+        
+        // CRITICAL FIX: Delay NetworkVariable operations to prevent Unity 2024 sync bug
+        StartCoroutine(DelayedNetworkVariableApplication());
+    }
+    
+    /// <summary>
+    /// CRITICAL FIX: Delayed NetworkVariable application to prevent Unity Netcode 2024 sync bug
+    /// during scene transitions where NetworkVariables can desync if modified during client loading
+    /// </summary>
+    private System.Collections.IEnumerator DelayedNetworkVariableApplication()
+    {
+        // Wait for proper network synchronization - especially important during scene transitions
+        int maxAttempts = 30; // 3 seconds max wait
+        int attempts = 0;
+        
+        while (attempts < maxAttempts)
+        {
+            // Check if network is fully synchronized and ready
+            if (NetworkManager.Singleton != null && 
+                IsSpawned && 
+                NetworkManager.Singleton.IsConnectedClient)
+            {
+                // Additional check: wait for scene to be fully loaded
+                if (SceneTransitionManager.Instance != null && 
+                    (SceneTransitionManager.Instance.IsInMainMenu() || SceneTransitionManager.Instance.IsInGame()))
+                {
+                    break; // Network is ready
+                }
+            }
+            
+            attempts++;
+            yield return new WaitForSeconds(0.1f);
+        }
+        
+        if (attempts >= maxAttempts)
+        {
+            Debug.LogWarning($"CleanCharacterLoader: Network sync timeout after {maxAttempts} attempts");
+        }
+        
+        // Now safe to apply NetworkVariable values
+        if (networkCharacterId.Value != -1)
+        {
+            Debug.Log($"CleanCharacterLoader: Applying character from NetworkVariable after sync delay: {networkCharacterId.Value}");
+            LoadCharacterByID(networkCharacterId.Value);
+        }
+        // Load character data if it's set locally (fallback)
+        else if (currentCharacterData != null)
+        {
+            Debug.Log($"CleanCharacterLoader: Loading local character data after sync delay");
+            LoadCharacter(currentCharacterData);
+        }
+    }
+    
     private void Start()
     {
-        // Initialize in Start() to ensure all components are ready
+        // Initialize in Start() as fallback for non-networked objects
         if (!isInitialized)
         {
             InitializeSafely();
@@ -110,7 +180,17 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
         }
         
         if (!isPreviewMode && characterAnimator != null && originalAnimatorController == null)
+        {
             originalAnimatorController = characterAnimator.runtimeAnimatorController;
+            
+            // CRITICAL ROOT MOTION FIX: Ensure base animator has root motion disabled
+            // This prevents twitching from the start
+            if (characterAnimator.applyRootMotion)
+            {
+                Debug.LogWarning("CleanCharacterLoader: Disabling Root Motion on base animator to prevent character twitching");
+                characterAnimator.applyRootMotion = false;
+            }
+        }
     }
     
     /// <summary>
@@ -195,24 +275,51 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
     }
     
     /// <summary>
-    /// Retry loading character by ID if registry isn't ready
+    /// Retry loading character by ID if registry isn't ready - IMPROVED to prevent stacking
     /// </summary>
     private System.Collections.IEnumerator RetryLoadCharacterByID(int characterID, int maxRetries)
     {
-        for (int attempt = 0; attempt < maxRetries; attempt++)
+        // Prevent multiple retry coroutines for the same character
+        string retryKey = $"retry_{characterID}";
+        if (retryInProgress.Contains(retryKey))
         {
-            yield return new WaitForSeconds(0.5f);
-            
-            if (CharacterRegistry.Instance != null)
-            {
-                Debug.Log($"CleanCharacterLoader: CharacterRegistry now available, loading character {characterID} (attempt {attempt + 1})");
-                LoadCharacterByID(characterID);
-                yield break;
-            }
+            Debug.Log($"CleanCharacterLoader: Retry already in progress for character {characterID}");
+            yield break;
         }
         
-        Debug.LogError($"CleanCharacterLoader: Failed to load character {characterID} after {maxRetries} attempts - CharacterRegistry still not available");
+        retryInProgress.Add(retryKey);
+        
+        try
+        {
+            for (int attempt = 0; attempt < maxRetries; attempt++)
+            {
+                yield return new WaitForSeconds(0.5f);
+                
+                // Check if object was destroyed or network despawned
+                if (this == null || !IsSpawned)
+                {
+                    Debug.Log($"CleanCharacterLoader: Object destroyed during retry for character {characterID}");
+                    yield break;
+                }
+                
+                if (CharacterRegistry.Instance != null)
+                {
+                    Debug.Log($"CleanCharacterLoader: CharacterRegistry now available, loading character {characterID} (attempt {attempt + 1})");
+                    LoadCharacterByID(characterID);
+                    yield break;
+                }
+            }
+            
+            Debug.LogError($"CleanCharacterLoader: Failed to load character {characterID} after {maxRetries} attempts - CharacterRegistry still not available");
+        }
+        finally
+        {
+            retryInProgress.Remove(retryKey);
+        }
     }
+    
+    // Track retry operations to prevent stacking
+    private System.Collections.Generic.HashSet<string> retryInProgress = new System.Collections.Generic.HashSet<string>();
     
     /// <summary>
     /// Swaps mesh - REQUIRES "Optimize Game Objects" to be ENABLED on both FBX imports
@@ -285,6 +392,7 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
     
     /// <summary>
     /// Applies animator controller (only in non-preview mode)
+    /// IMPROVED to prevent animation twitching and movement conflicts
     /// </summary>
     public bool ApplyAnimatorController(RuntimeAnimatorController controller)
     {
@@ -297,11 +405,59 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
             return true;
         }
         
-        characterAnimator.runtimeAnimatorController = controller;
-        characterAnimator.Rebind();
+        // CRITICAL FIX: Prevent animation twitching by properly handling animator state transitions
+        try
+        {
+            // Store current animation state before switching
+            bool wasEnabled = characterAnimator.enabled;
+            
+            // Temporarily disable animator to prevent conflicts during transition
+            characterAnimator.enabled = false;
+            
+            // Apply new controller
+            characterAnimator.runtimeAnimatorController = controller;
+            
+            // Wait a frame before re-enabling to let Unity process the controller change
+            StartCoroutine(DelayedAnimatorRestart(wasEnabled));
+            
+            Debug.Log($"CleanCharacterLoader: ✅ Applied animator controller '{controller.name}' with twitching prevention");
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"CleanCharacterLoader: Error applying animator controller: {e.Message}");
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Delayed animator restart to prevent twitching when switching controllers
+    /// </summary>
+    private System.Collections.IEnumerator DelayedAnimatorRestart(bool wasEnabled)
+    {
+        // Wait for the end of frame to ensure controller is properly set
+        yield return new WaitForEndOfFrame();
         
-        Debug.Log($"CleanCharacterLoader: ✅ Applied animator controller '{controller.name}'");
-        return true;
+        if (characterAnimator != null && characterAnimator.runtimeAnimatorController != null)
+        {
+            // CRITICAL ROOT MOTION FIX: Ensure root motion is disabled for CharacterController compatibility
+            // This prevents twitching caused by animation-movement conflicts
+            characterAnimator.applyRootMotion = false;
+            
+            // Re-enable animator
+            characterAnimator.enabled = wasEnabled;
+            
+            // CRITICAL: Use Rebind() after re-enabling, not before
+            if (wasEnabled)
+            {
+                characterAnimator.Rebind();
+                
+                // Force animator to update to initial state
+                characterAnimator.Update(0f);
+                
+                Debug.Log("CleanCharacterLoader: Animator restarted successfully after controller change (Root Motion disabled)");
+            }
+        }
     }
     
     /// <summary>
@@ -310,13 +466,8 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
     public bool ApplyCharacterStats(CharacterData characterData)
     {
         if (isPreviewMode)
-            return true;
-        
-        // Check network ownership
-        var networkBehaviour = GetComponent<NetworkBehaviour>();
-        if (networkBehaviour != null && !networkBehaviour.IsOwner)
         {
-            Debug.Log("CleanCharacterLoader: Skipping stats (not owner)");
+            Debug.Log("CleanCharacterLoader: Skipping stats application (preview mode)");
             return true;
         }
         
@@ -328,14 +479,21 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
             return false;
         }
         
+        // CRITICAL FIX: Always apply stats regardless of ownership
+        // Stats should be applied on all clients for consistency
+        Debug.Log($"CleanCharacterLoader: Applying stats for '{characterData.characterName}' (IsOwner: {IsOwner})");
+        Debug.Log($"CleanCharacterLoader: BEFORE - MoveSpeed: {controller.MoveSpeed}, SprintSpeed: {controller.SprintSpeed}");
+        
         // Apply basic stats
         controller.MoveSpeed = characterData.moveSpeed;
         controller.SprintSpeed = characterData.sprintSpeed;
+        controller.SpeedChangeRate = characterData.speedChangeRate;
         controller.JumpHeight = characterData.jumpHeight;
         controller.Gravity = characterData.gravity;
         controller.GroundedRadius = characterData.groundedRadius;
         
-        Debug.Log($"CleanCharacterLoader: ✅ Applied stats for '{characterData.characterName}'");
+        Debug.Log($"CleanCharacterLoader: AFTER - MoveSpeed: {controller.MoveSpeed}, SprintSpeed: {controller.SprintSpeed}");
+        Debug.Log($"CleanCharacterLoader: ✅ Applied stats for '{characterData.characterName}' - MoveSpeed: {characterData.moveSpeed}, SprintSpeed: {characterData.sprintSpeed}, SpeedChangeRate: {characterData.speedChangeRate}");
         return true;
     }
     
@@ -367,6 +525,153 @@ public class UltraSimpleMeshSwapper : MonoBehaviour
         
         currentCharacterData = null;
         Debug.Log("CleanCharacterLoader: ✅ Reset to default");
+    }
+    
+    /// <summary>
+    /// NetworkVariable change callback - handles character synchronization across scene transitions
+    /// IMPROVED with validation and error handling
+    /// </summary>
+    private void OnNetworkCharacterIdChanged(int previousValue, int newValue)
+    {
+        Debug.Log($"CleanCharacterLoader: NetworkVariable character changed from {previousValue} to {newValue} on {gameObject.name}");
+        
+        // Validate the change
+        if (newValue == previousValue)
+        {
+            Debug.Log("CleanCharacterLoader: Character ID unchanged, skipping");
+            return;
+        }
+        
+        if (newValue == -1)
+        {
+            Debug.Log("CleanCharacterLoader: Character ID reset to -1, clearing character");
+            // Could reset to default character here if needed
+            return;
+        }
+        
+        // Check if we're still spawned and network is ready
+        if (!IsSpawned || NetworkManager.Singleton == null)
+        {
+            Debug.LogWarning("CleanCharacterLoader: Not spawned or NetworkManager null, deferring character load");
+            return;
+        }
+        
+        // Load character when NetworkVariable changes
+        Debug.Log($"CleanCharacterLoader: Loading character {newValue} due to NetworkVariable change");
+        LoadCharacterByID(newValue);
+    }
+    
+    /// <summary>
+    /// Sets character ID via NetworkVariable (Server authoritative)
+    /// IMPROVED with validation and error handling
+    /// </summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void SetNetworkCharacterIdServerRpc(int characterId, ServerRpcParams serverRpcParams = default)
+    {
+        if (!IsServer)
+        {
+            Debug.LogWarning("CleanCharacterLoader: SetNetworkCharacterIdServerRpc called but not server");
+            return;
+        }
+        
+        if (!IsSpawned)
+        {
+            Debug.LogWarning("CleanCharacterLoader: SetNetworkCharacterIdServerRpc called but not spawned");
+            return;
+        }
+        
+        Debug.Log($"CleanCharacterLoader: SetNetworkCharacterIdServerRpc called - Character: {characterId} for {gameObject.name}");
+        
+        // Validate character ID
+        if (characterId < -1)
+        {
+            Debug.LogWarning($"CleanCharacterLoader: Invalid character ID {characterId}, ignoring");
+            return;
+        }
+        
+        // Only update if different
+        if (networkCharacterId.Value != characterId)
+        {
+            networkCharacterId.Value = characterId;
+            Debug.Log($"CleanCharacterLoader: NetworkVariable updated to {characterId}");
+        }
+        else
+        {
+            Debug.Log($"CleanCharacterLoader: Character ID {characterId} already set, skipping update");
+        }
+    }
+    
+    /// <summary>
+    /// Public method to set character that works across network
+    /// IMPROVED with validation and error handling
+    /// </summary>
+    public void SetNetworkCharacterId(int characterId)
+    {
+        if (!IsSpawned)
+        {
+            Debug.LogWarning($"CleanCharacterLoader: Cannot set character {characterId} - not spawned yet");
+            return;
+        }
+        
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogWarning($"CleanCharacterLoader: Cannot set character {characterId} - NetworkManager is null");
+            return;
+        }
+        
+        if (IsServer)
+        {
+            Debug.Log($"CleanCharacterLoader: Setting NetworkVariable character {characterId} directly (Server)");
+            
+            // Validate character ID
+            if (characterId < -1)
+            {
+                Debug.LogWarning($"CleanCharacterLoader: Invalid character ID {characterId}, ignoring");
+                return;
+            }
+            
+            // Only update if different
+            if (networkCharacterId.Value != characterId)
+            {
+                networkCharacterId.Value = characterId;
+                Debug.Log($"CleanCharacterLoader: NetworkVariable updated to {characterId}");
+            }
+        }
+        else
+        {
+            Debug.Log($"CleanCharacterLoader: Requesting character {characterId} via ServerRpc (Client)");
+            SetNetworkCharacterIdServerRpc(characterId);
+        }
+    }
+    
+    /// <summary>
+    /// Gets the current network character ID
+    /// </summary>
+    public int GetNetworkCharacterId()
+    {
+        return networkCharacterId.Value;
+    }
+    
+    public override void OnNetworkDespawn()
+    {
+        // Clean up NetworkVariable subscription
+        if (networkCharacterId != null)
+        {
+            networkCharacterId.OnValueChanged -= OnNetworkCharacterIdChanged;
+        }
+        
+        // Clear retry operations
+        if (retryInProgress != null)
+        {
+            retryInProgress.Clear();
+        }
+        
+        // Stop any running coroutines
+        StopAllCoroutines();
+        
+        Debug.Log($"CleanCharacterLoader: OnNetworkDespawn - cleanup complete for {gameObject.name}");
+        
+        base.OnNetworkDespawn();
     }
     
     /// <summary>

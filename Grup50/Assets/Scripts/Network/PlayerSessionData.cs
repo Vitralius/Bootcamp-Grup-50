@@ -93,15 +93,46 @@ public class PlayerSessionData : NetworkBehaviour
     
     private void RegisterCurrentPlayer()
     {
+        // IMPROVED: Add network state validation before registration
+        if (!IsSpawned)
+        {
+            Debug.LogWarning("PlayerSessionData: Cannot register player - not spawned yet. Retrying...");
+            Invoke(nameof(RegisterCurrentPlayer), 0.5f);
+            return;
+        }
+        
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogError("PlayerSessionData: Cannot register player - NetworkManager is null");
+            return;
+        }
+        
         try
         {
+            // Validate authentication service is ready
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                Debug.LogWarning("PlayerSessionData: Authentication not ready, retrying...");
+                Invoke(nameof(RegisterCurrentPlayer), 0.5f);
+                return;
+            }
+            
             string currentPlayerId = AuthenticationService.Instance.PlayerId;
+            if (string.IsNullOrEmpty(currentPlayerId))
+            {
+                Debug.LogError("PlayerSessionData: Player ID is null or empty");
+                return;
+            }
+            
             string playerGuid = GetOrCreatePlayerGuid(currentPlayerId);
+            Debug.Log($"PlayerSessionData: Registering player {currentPlayerId} with GUID {playerGuid}");
             RegisterPlayerServerRpc(currentPlayerId, playerGuid);
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Failed to register current player: {e.Message}");
+            Debug.LogError($"PlayerSessionData: Failed to register current player: {e.Message}");
+            // Retry once more after delay
+            Invoke(nameof(RegisterCurrentPlayer), 1f);
         }
     }
     
@@ -113,7 +144,23 @@ public class PlayerSessionData : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     private void RegisterPlayerServerRpc(string playerId, string playerGuid)
     {
-        if (!IsServer) return;
+        if (!IsServer) 
+        {
+            Debug.LogWarning("PlayerSessionData: RegisterPlayerServerRpc called but not server");
+            return;
+        }
+        
+        if (!IsSpawned)
+        {
+            Debug.LogWarning("PlayerSessionData: RegisterPlayerServerRpc called but not spawned");
+            return;
+        }
+        
+        if (string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(playerGuid))
+        {
+            Debug.LogError($"PlayerSessionData: Invalid player data - PlayerId: {playerId}, GUID: {playerGuid}");
+            return;
+        }
         
         Debug.Log($"[SERVER] Registering player: {playerId} with GUID: {playerGuid}");
         
@@ -154,7 +201,25 @@ public class PlayerSessionData : NetworkBehaviour
     {
         if (!IsServer) 
         {
-            Debug.Log($"🔄 PLAYERSESSION: UpdatePlayerCharacterServerRpc called but not server");
+            Debug.LogWarning($"PlayerSessionData: UpdatePlayerCharacterServerRpc called but not server");
+            return;
+        }
+        
+        if (!IsSpawned)
+        {
+            Debug.LogWarning($"PlayerSessionData: UpdatePlayerCharacterServerRpc called but not spawned");
+            return;
+        }
+        
+        if (string.IsNullOrEmpty(playerId))
+        {
+            Debug.LogError($"PlayerSessionData: Invalid player ID in UpdatePlayerCharacterServerRpc");
+            return;
+        }
+        
+        if (characterId < 0)
+        {
+            Debug.LogWarning($"PlayerSessionData: Invalid character ID {characterId} for player {playerId}");
             return;
         }
         
@@ -190,10 +255,30 @@ public class PlayerSessionData : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void UpdatePlayerReadyServerRpc(string playerId, bool isReady)
     {
-        if (!IsServer) return;
+        if (!IsServer) 
+        {
+            Debug.LogWarning("PlayerSessionData: UpdatePlayerReadyServerRpc called but not server");
+            return;
+        }
+        
+        if (!IsSpawned)
+        {
+            Debug.LogWarning("PlayerSessionData: UpdatePlayerReadyServerRpc called but not spawned");
+            return;
+        }
+        
+        if (string.IsNullOrEmpty(playerId))
+        {
+            Debug.LogError("PlayerSessionData: Invalid player ID in UpdatePlayerReadyServerRpc");
+            return;
+        }
         
         string playerGuid = GetPlayerGuid(playerId);
-        if (string.IsNullOrEmpty(playerGuid)) return;
+        if (string.IsNullOrEmpty(playerGuid)) 
+        {
+            Debug.LogError($"PlayerSessionData: Could not find GUID for player {playerId}");
+            return;
+        }
         
         int sessionIndex = FindPlayerSessionIndex(playerGuid);
         if (sessionIndex >= 0)
@@ -361,6 +446,43 @@ public class PlayerSessionData : NetworkBehaviour
         }
         
         Debug.Log("[SERVER] Reset all player sessions");
+    }
+    
+    /// <summary>
+    /// Helper method to validate network state before operations
+    /// </summary>
+    private bool ValidateNetworkState(string methodName)
+    {
+        if (!IsSpawned)
+        {
+            Debug.LogWarning($"PlayerSessionData: {methodName} called but not spawned");
+            return false;
+        }
+        
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogError($"PlayerSessionData: {methodName} called but NetworkManager is null");
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// <summary>
+    /// Helper method to validate server state
+    /// </summary>  
+    private bool ValidateServerState(string methodName)
+    {
+        if (!ValidateNetworkState(methodName))
+            return false;
+            
+        if (!IsServer)
+        {
+            Debug.LogWarning($"PlayerSessionData: {methodName} called but not server");
+            return false;
+        }
+        
+        return true;
     }
     
     public override void OnDestroy()

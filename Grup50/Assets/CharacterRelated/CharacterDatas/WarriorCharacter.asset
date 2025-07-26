@@ -20,14 +20,14 @@ MonoBehaviour:
   outfitMeshes: []
   characterMaterials:
   - {fileID: 2100000, guid: dbd798135f1a2ca428074d36a2ac9ecc, type: 2}
-  animatorController: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
+  animatorController: {fileID: 0}
   characterScale: {x: 1, y: 1, z: 1}
   targetRendererNames: []
   _sameSkeleton: 1
-  moveSpeed: 20
-  sprintSpeed: 53.335
+  moveSpeed: 2
+  sprintSpeed: 5.335
   rotationSmoothTime: 0.12
-  speedChangeRate: 0.2
+  speedChangeRate: 10
   holdToCrouch: 1
   crouchSpeedMultiplier: 0.5
   slideSpeedThreshold: 2.5

@@ -11,22 +11,23 @@ This is a Unity 3D multiplayer game project built using:
 ## Key Project Structure
 
 ### Player Prefab Information
-**IMPORTANT**: The main player prefab used in this project is `Assets/CharacterRelated/Prefabs/NewBaseCharacter.prefab`
-- This prefab contains all necessary components: CharacterController, PlayerInput, NetworkObject, ThirdPersonController, StarterAssetsInputs
-- Always reference this prefab when working with character systems
+**IMPORTANT**: The main player prefabs used in this project are:
+- **Game Character**: `Assets/BaseCharPrefab.prefab` - Contains all necessary components: CharacterController, PlayerInput, NetworkObject, ThirdPersonController, StarterAssetsInputs, UltraSimpleMeshSwapper
+- **Lobby Preview**: `Assets/BaseCharPreview.prefab` - Contains preview-only components with UltraSimpleMeshSwapper in preview mode
+- Always reference BaseCharPrefab for gameplay and BaseCharPreview for character selection preview
 - Other prefabs like PlayerPrefabEmpty or PlayerCapsule are NOT the primary prefabs used in gameplay
 
 ### Character Visual System
 **OPTIMIZED**: The CharacterLoader system uses **Same-Skeleton Mesh Replacement** for maximum efficiency and animation compatibility:
-- **Single Prefab Spawning**: SpawnManager always spawns the same `NewBaseCharacter` prefab
+- **Single Prefab Spawning**: SpawnManager always spawns the same `BaseCharPrefab` prefab
 - **Skeletal Mesh Replacement**: CharacterData contains only skeletal mesh references (NO prefabs)
 - **Same Skeleton Structure**: All characters share identical bone structure = perfect animation compatibility
 - **Problem Solved**: No more nested character spawning or duplicate components
 
 #### Same-Skeleton System Architecture:
-1. **SpawnManager**: Spawns `NewBaseCharacter` prefab (always the same)
+1. **SpawnManager**: Spawns `BaseCharPrefab` prefab (always the same)
 2. **CharacterData**: Contains only `skeletalMesh`, `materials`, `animatorController`
-3. **CharacterLoader**: Replaces only the `SkinnedMeshRenderer.sharedMesh`
+3. **UltraSimpleMeshSwapper**: Replaces only the `SkinnedMeshRenderer.sharedMesh`
 4. **Animation Compatibility**: Same skeleton = all animations work perfectly
 
 #### Creating Character Meshes:

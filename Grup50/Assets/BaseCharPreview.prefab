@@ -113,10 +113,10 @@ PrefabInstance:
       addedObject: {fileID: 2351250085128605099}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 3241034141665984067}
+      addedObject: {fileID: 6038770835401545148}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 6038770835401545148}
+      addedObject: {fileID: 3241034141665984067}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 739156912589820491}
@@ -156,27 +156,6 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 1, z: 0}
---- !u!114 &3241034141665984067
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6823222723104895032}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8c26d17ccbaa50247b3c53a5cff8b9bd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  targetRenderer: {fileID: 9021897819587611128}
-  characterAnimator: {fileID: 223782031619256568}
-  isPreviewMode: 1
-  originalMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
-  originalMaterials:
-  - {fileID: 2100000, guid: dbd798135f1a2ca428074d36a2ac9ecc, type: 2}
-  originalAnimatorController: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
-  boMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
-  wizardMesh: {fileID: -2054420175920092483, guid: bf55b5e8d6a03ee4391e0fb9b7c8efda, type: 3}
 --- !u!114 &6038770835401545148
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -202,6 +181,28 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &3241034141665984067
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6823222723104895032}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c26d17ccbaa50247b3c53a5cff8b9bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  targetRenderer: {fileID: 9021897819587611128}
+  characterAnimator: {fileID: 223782031619256568}
+  isPreviewMode: 1
+  originalMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
+  originalMaterials:
+  - {fileID: 2100000, guid: dbd798135f1a2ca428074d36a2ac9ecc, type: 2}
+  originalAnimatorController: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
+  boMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
+  wizardMesh: {fileID: -2054420175920092483, guid: bf55b5e8d6a03ee4391e0fb9b7c8efda, type: 3}
 --- !u!114 &739156912589820491
 MonoBehaviour:
   m_ObjectHideFlags: 0
