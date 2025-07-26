@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
 using Unity.Cinemachine;
- using Unity.Netcode;
- using UnityEngine;
+using Unity.Netcode;
+using Unity.Netcode.Components;
+using UnityEngine;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -231,6 +232,9 @@ namespace StarterAssets
         private float _originalFOV;
         private float _targetFOV;
         private CinemachineCamera _virtualCamera;
+        
+        // Public getter for camera assignment checking
+        public CinemachineCamera VirtualCamera => _virtualCamera;
         private ScreenShakeManager _screenShakeManager;
         
         // sprint variables
@@ -294,37 +298,38 @@ namespace StarterAssets
 
             if (IsOwner)
             {
-                Debug.Log($"[ThirdPersonController] Setting up camera for owner: {gameObject.name}");
+                Debug.Log($"[ThirdPersonController] Setting up camera for owner: {gameObject.name}, ClientID: {OwnerClientId}");
                 
-                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponentInChildren<Camera>();
-                if (_mainCamera == null)
+                // CRITICAL FIX: Better camera finding for clients
+                GameObject mainCameraObj = GameObject.FindGameObjectWithTag("MainCamera");
+                if (mainCameraObj == null)
                 {
-                    Debug.LogError($"[ThirdPersonController] MainCamera not found for {gameObject.name}!");
+                    // Fallback: Find any camera in the scene
+                    Camera[] fallbackCameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
+                    if (fallbackCameras.Length > 0)
+                    {
+                        _mainCamera = fallbackCameras[0];
+                        Debug.Log($"[ThirdPersonController] No MainCamera tag found, using fallback camera: {_mainCamera.name}");
+                    }
                 }
                 else
                 {
-                    Debug.Log($"[ThirdPersonController] Found MainCamera: {_mainCamera.name}");
+                    _mainCamera = mainCameraObj.GetComponentInChildren<Camera>();
+                    if (_mainCamera == null)
+                        _mainCamera = mainCameraObj.GetComponent<Camera>();
                 }
                 
-                // Set up Cinemachine camera to follow this player
-                // CRITICAL FIX: Find ALL CinemachineCameras and disable non-owner ones
-                CinemachineCamera[] allCameras = GameObject.FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None);
-                Debug.Log($"[ThirdPersonController] Found {allCameras.Length} CinemachineCameras in scene");
-                
-                foreach (CinemachineCamera cam in allCameras)
+                if (_mainCamera == null)
                 {
-                    // Disable all cameras first
-                    cam.gameObject.SetActive(false);
-                    Debug.Log($"[ThirdPersonController] Disabled camera: {cam.name}");
+                    Debug.LogError($"[ThirdPersonController] No camera found at all for {gameObject.name}!");
+                }
+                else
+                {
+                    Debug.Log($"[ThirdPersonController] Found camera: {_mainCamera.name} for ClientID: {OwnerClientId}");
                 }
                 
-                // Re-enable the first camera for this owner
-                if (allCameras.Length > 0)
-                {
-                    _virtualCamera = allCameras[0];
-                    _virtualCamera.gameObject.SetActive(true);
-                    Debug.Log($"[ThirdPersonController] Re-enabled camera for owner: {_virtualCamera.name}");
-                }
+                // IMPROVED CAMERA FIX: Simplified camera assignment using client ID
+                AssignCameraToPlayer();
                 
                 if (_virtualCamera != null)
                 {
@@ -469,6 +474,13 @@ namespace StarterAssets
         {
             if (!IsOwner)
                 return;
+                
+            // CRITICAL FIX: Ensure NetworkTransform doesn't interfere with owner movement
+            var networkTransform = GetComponent<NetworkTransform>();
+            if (networkTransform != null && IsOwner)
+            {
+                networkTransform.enabled = true; // Ensure it's enabled for sync but won't interfere
+            }
             
             if(!_hasAnimator)
                 _hasAnimator = TryGetComponent(out _animator);
@@ -1015,23 +1027,22 @@ namespace StarterAssets
             // update animator if using character
             if (_hasAnimator)
             {
-                _animator.SetFloat(_animIDSpeed, _animationBlend);
-                // // Calculate normalized speed (0-1) for animation
-                // float maxPossibleSpeed = _input.sprint ? SprintSpeed : f;
-                // if (_isCrouching)
-                //     maxPossibleSpeed *= CrouchSpeedMultiplier;
-                //
-                // float normalizedSpeed = maxPossibleSpeed > 0 ? Mathf.Clamp01(_speed / maxPossibleSpeed) : 0f;
-                //
-                // _animator.SetFloat(_animIDSpeed, normalizedSpeed);
-                _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+                // CRITICAL FIX: Calculate normalized speed (0-1) for animation blend trees
+                float maxPossibleSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
+                if (_isCrouching)
+                    maxPossibleSpeed *= CrouchSpeedMultiplier;
+
+                float normalizedSpeed = maxPossibleSpeed > 0 ? Mathf.Clamp01(_speed / maxPossibleSpeed) : 0f;
+
+                _animator.SetFloat(_animIDSpeed, _speed);
+                //_animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
                 _animator.SetFloat(_animIDDirectionX, _directionX);
                 _animator.SetFloat(_animIDDirectionY, _directionY);
                 
                 // Debug animation parameters (only when moving to avoid spam)
                 if (_input.move != Vector2.zero && ShowDebugInfo)
                 {
-                    Debug.Log($"[ThirdPersonController] 8-Way Animation - Speed: {_animationBlend:F2}, DirectionX: {_directionX:F2} (L/R relative to mesh), DirectionY: {_directionY:F2} (F/B relative to mesh)");
+                    Debug.Log($"[ThirdPersonController] 8-Way Animation - NormalizedSpeed: {normalizedSpeed:F2} (was {_animationBlend:F2}), ActualSpeed: {_speed:F2}, MaxSpeed: {maxPossibleSpeed:F2}");
                 }
             }
         }
@@ -1081,7 +1092,7 @@ namespace StarterAssets
                 // float normalizedSlideSpeed = MaxSlideSpeed > 0 ? Mathf.Clamp01(_slideSpeed / MaxSlideSpeed) : 0f;
                 //
                 // _animator.SetFloat(_animIDSpeed, normalizedSlideSpeed);
-                _animator.SetFloat(_animIDMotionSpeed, 1f);
+                //_animator.SetFloat(_animIDMotionSpeed, 1f);
             }
         }
         
@@ -1424,6 +1435,45 @@ namespace StarterAssets
             if (animationEvent.animatorClipInfo.weight > 0.5f)
             {
                 AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
+            }
+        }
+        
+        /// <summary>
+        /// IMPROVED CAMERA FIX: Simplified camera assignment to prevent race conditions
+        /// </summary>
+        private void AssignCameraToPlayer()
+        {
+            // Find all Cinemachine cameras in the scene
+            CinemachineCamera[] allCameras = GameObject.FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None);
+            Debug.Log($"[ThirdPersonController] Found {allCameras.Length} CinemachineCameras in scene");
+            
+            if (allCameras.Length == 0)
+            {
+                Debug.LogWarning("[ThirdPersonController] No CinemachineCameras found in scene!");
+                return;
+            }
+            
+            // SIMPLE APPROACH: Use ClientId as index to assign cameras deterministically
+            // This prevents race conditions where multiple players compete for the same camera
+            if (NetworkManager.Singleton != null)
+            {
+                // Convert ClientId to array index
+                int cameraIndex = (int)(OwnerClientId % (ulong)allCameras.Length);
+                _virtualCamera = allCameras[cameraIndex];
+                
+                Debug.Log($"[ThirdPersonController] Assigned camera {_virtualCamera.name} (index {cameraIndex}) to ClientID: {OwnerClientId}");
+            }
+            else
+            {
+                // Fallback for single player or testing
+                _virtualCamera = allCameras[0];
+                Debug.Log($"[ThirdPersonController] Fallback: Using first camera {_virtualCamera.name}");
+            }
+            
+            // Activate the assigned camera
+            if (_virtualCamera != null)
+            {
+                _virtualCamera.gameObject.SetActive(true);
             }
         }
     }

@@ -20,7 +20,7 @@ MonoBehaviour:
   outfitMeshes: []
   characterMaterials:
   - {fileID: 2100000, guid: 744996dae0bce2842baeaeb3d4ca526e, type: 2}
-  animatorController: {fileID: 9100000, guid: 63279d7d4e0973547839265c97f0235f, type: 2}
+  animatorController: {fileID: 0}
   characterScale: {x: 1, y: 1, z: 1}
   targetRendererNames: []
   _sameSkeleton: 1

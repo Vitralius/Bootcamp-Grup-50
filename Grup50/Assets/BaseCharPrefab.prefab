@@ -90,7 +90,11 @@ PrefabInstance:
     - target: {fileID: 5866666021909216657, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
+      objectReference: {fileID: 9100000, guid: c6d24dc7d49c83e4d865d997acdbb000, type: 2}
+    - target: {fileID: 5866666021909216657, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
@@ -127,7 +131,7 @@ PrefabInstance:
       addedObject: {fileID: 888131479045102287}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 6002744610449094682}
+      addedObject: {fileID: 8121316473130955616}
   m_SourcePrefab: {fileID: 100100000, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
 --- !u!95 &223782031619256568 stripped
 Animator:
@@ -436,7 +440,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  NetworkTransformExpanded: 0
+  NetworkTransformExpanded: 1
   AutoOwnerAuthorityTickOffset: 1
   PositionInterpolationType: 0
   RotationInterpolationType: 0
@@ -447,19 +451,19 @@ MonoBehaviour:
   RotationMaxInterpolationTime: 0.1
   ScaleLerpSmoothing: 1
   ScaleMaxInterpolationTime: 0.1
-  AuthorityMode: 0
+  AuthorityMode: 1
   TickSyncChildren: 0
   UseUnreliableDeltas: 0
   SyncPositionX: 1
   SyncPositionY: 1
   SyncPositionZ: 1
-  SyncRotAngleX: 1
+  SyncRotAngleX: 0
   SyncRotAngleY: 1
-  SyncRotAngleZ: 1
-  SyncScaleX: 1
-  SyncScaleY: 1
-  SyncScaleZ: 1
-  PositionThreshold: 0.001
+  SyncRotAngleZ: 0
+  SyncScaleX: 0
+  SyncScaleY: 0
+  SyncScaleZ: 0
+  PositionThreshold: 0.01
   RotAngleThreshold: 0.01
   ScaleThreshold: 0.01
   UseQuaternionSynchronization: 0
@@ -499,7 +503,7 @@ MonoBehaviour:
   healShakeIntensity: 0.5
   minShakeRange: 0.3
   maxShakeRange: 1
---- !u!114 &6002744610449094682
+--- !u!114 &8121316473130955616
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -511,12 +515,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c26d17ccbaa50247b3c53a5cff8b9bd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
   targetRenderer: {fileID: 9021897819587611128}
   characterAnimator: {fileID: 223782031619256568}
   isPreviewMode: 0
   originalMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
   originalMaterials: []
-  originalAnimatorController: {fileID: 9100000, guid: 40db3173a05ae3242b1c182a09b0a183, type: 2}
+  originalAnimatorController: {fileID: 9100000, guid: c6d24dc7d49c83e4d865d997acdbb000, type: 2}
   boMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
   wizardMesh: {fileID: -2054420175920092483, guid: bf55b5e8d6a03ee4391e0fb9b7c8efda, type: 3}
 --- !u!137 &9021897819587611128 stripped

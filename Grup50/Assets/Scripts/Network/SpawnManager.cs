@@ -13,7 +13,7 @@ public class SpawnManager : NetworkBehaviour
     
     public override void OnNetworkSpawn()
     {
-        if (IsServer)
+        if (IsServer && NetworkManager.Singleton != null)
         {
             // Spawn players for all currently connected clients
             foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
@@ -24,6 +24,10 @@ public class SpawnManager : NetworkBehaviour
             // Listen for new connections
             NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+        }
+        else if (IsServer && NetworkManager.Singleton == null)
+        {
+            Debug.LogError("SpawnManager: NetworkManager.Singleton is null on server");
         }
     }
     
@@ -50,7 +54,7 @@ public class SpawnManager : NetworkBehaviour
     private void SpawnPlayerAtPosition(ulong clientId)
     {
         // Check if player already exists (from previous scene)
-        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var client))
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var client))
         {
             if (client.PlayerObject != null)
             {
@@ -78,21 +82,45 @@ public class SpawnManager : NetworkBehaviour
             
             Debug.Log($"Spawned new player for client {clientId} at position {spawnPosition}");
             
-            // Apply character selection after a brief delay to ensure network sync
+            // Apply character selection with proper network state validation
             if (SceneTransitionManager.Instance != null && SceneTransitionManager.Instance.IsInGame())
             {
-                Invoke(nameof(DelayedCharacterApplication), 0.2f);
+                StartCoroutine(ApplyCharacterSelectionWhenReady(clientId));
             }
         }
     }
     
-    private void DelayedCharacterApplication()
+    private System.Collections.IEnumerator ApplyCharacterSelectionWhenReady(ulong clientId)
     {
-        // Apply character selections to all spawned players
-        ApplyCharacterSelectionsToAllPlayers();
+        // Wait for NetworkVariable synchronization and PlayerSessionData to be ready
+        int maxAttempts = 50; // 5 seconds max wait
+        int attempts = 0;
+        
+        while (attempts < maxAttempts)
+        {
+            // Check if NetworkManager and PlayerSessionData are ready
+            if (NetworkManager.Singleton != null && 
+                PlayerSessionData.Instance != null && 
+                spawnedPlayers.TryGetValue(clientId, out GameObject playerObject) &&
+                playerObject != null)
+            {
+                var characterLoader = playerObject.GetComponent<UltraSimpleMeshSwapper>();
+                if (characterLoader != null && characterLoader.IsSpawned)
+                {
+                    // NetworkVariable is ready, apply character data
+                    ApplyCharacterSelectionToSinglePlayer(clientId, playerObject);
+                    yield break;
+                }
+            }
+            
+            attempts++;
+            yield return new WaitForSeconds(0.1f); // Check every 100ms
+        }
+        
+        Debug.LogWarning($"SpawnManager: Failed to apply character selection to player {clientId} after {maxAttempts} attempts");
     }
     
-    private void ApplyCharacterSelectionToExistingPlayer(NetworkObject playerObject, ulong clientId)
+    private void ApplyCharacterSelectionToSinglePlayer(ulong clientId, GameObject playerObject)
     {
         var characterLoader = playerObject.GetComponent<UltraSimpleMeshSwapper>();
         if (characterLoader == null)
@@ -109,109 +137,120 @@ public class SpawnManager : NetworkBehaviour
             return;
         }
         
-        var connectedSessions = playerSessionData.GetConnectedPlayerSessions();
-        foreach (var session in connectedSessions)
+        // Get the current player session for this client
+        var currentSession = playerSessionData.GetCurrentPlayerSession();
+        
+        // CRITICAL FIX: Use PersistentCharacterCache to get character selection by clientId
+        var persistentCache = PersistentCharacterCache.Instance;
+        int selectedCharacterId = 0;
+        
+        if (persistentCache != null)
         {
-            // Find the session that corresponds to this client
-            var connectedClient = NetworkManager.Singleton.ConnectedClients[clientId];
-            if (connectedClient.PlayerObject == playerObject)
+            int cachedId = persistentCache.GetCachedCharacterSelection(clientId);
+            if (cachedId > 0) // PersistentCharacterCache returns -1 for no selection, but we want > 0 for valid characters
             {
-                if (session.selectedCharacterId != 0) // 0 is default/no selection
-                {
-                    var characterData = CharacterRegistry.Instance?.GetCharacterByID(session.selectedCharacterId);
-                    if (characterData != null)
-                    {
-                        Debug.Log($"Applying character {characterData.characterName} to existing player {session.playerName} (ClientID: {clientId})");
-                        characterLoader.LoadCharacter(characterData);
-                        
-                        // Sync to the specific client
-                        ApplyCharacterToPlayerClientRpc(session.selectedCharacterId, new ClientRpcParams
-                        {
-                            Send = new ClientRpcSendParams
-                            {
-                                TargetClientIds = new ulong[] { clientId }
-                            }
-                        });
-                    }
-                }
-                break;
+                selectedCharacterId = cachedId;
+                Debug.Log($"SpawnManager: Got cached character selection for client {clientId}: {selectedCharacterId}");
             }
         }
+        
+        // Fallback: Try to find in current session if cache is empty
+        if (selectedCharacterId == 0 && currentSession.HasValue)
+        {
+            selectedCharacterId = currentSession.Value.selectedCharacterId;
+            Debug.Log($"SpawnManager: Using current session character for client {clientId}: {selectedCharacterId}");
+        }
+        
+        // Second fallback: Try GUID-based lookup if still empty
+        if (selectedCharacterId == 0 && currentSession.HasValue && persistentCache != null)
+        {
+            int guidCachedId = persistentCache.GetCachedCharacterSelectionByGuid(currentSession.Value.playerId.ToString());
+            if (guidCachedId > 0)
+            {
+                selectedCharacterId = guidCachedId;
+                Debug.Log($"SpawnManager: Using GUID-cached character for client {clientId}: {selectedCharacterId}");
+            }
+        }
+        
+        // If we have a character selection, apply it
+        if (selectedCharacterId != 0)
+        {
+            var characterData = CharacterRegistry.Instance?.GetCharacterByID(selectedCharacterId);
+            if (characterData != null)
+            {
+                Debug.Log($"SpawnManager: Applying character {characterData.characterName} to client {clientId}");
+                
+                // Cache the selection for backup
+                if (persistentCache != null)
+                {
+                    persistentCache.CacheCharacterSelection(clientId, selectedCharacterId);
+                    if (currentSession.HasValue)
+                    {
+                        persistentCache.CacheCharacterSelectionByGuid(currentSession.Value.playerId.ToString(), selectedCharacterId);
+                    }
+                }
+                
+                // Use NetworkVariable system for proper character sync
+                characterLoader.SetNetworkCharacterId(selectedCharacterId);
+                Debug.Log($"SpawnManager: Character loading initiated for client {clientId} with character {selectedCharacterId}");
+            }
+            else
+            {
+                Debug.LogWarning($"SpawnManager: Character ID {selectedCharacterId} not found in CharacterRegistry for client {clientId}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"SpawnManager: No character selection found for client {clientId}");
+            
+            // Debug: Show all available sessions
+            var connectedSessions = playerSessionData.GetConnectedPlayerSessions();
+            Debug.Log($"SpawnManager: Available sessions ({connectedSessions.Count}):");
+            foreach (var session in connectedSessions)
+            {
+                Debug.Log($"  - {session.playerName} (ID: {session.playerId}, Character: {session.selectedCharacterId})");
+            }
+        }
+    }
+    
+    
+    private void ApplyCharacterSelectionToExistingPlayer(NetworkObject playerObject, ulong clientId)
+    {
+        // Use the same logic as single player application
+        ApplyCharacterSelectionToSinglePlayer(clientId, playerObject.gameObject);
     }
     
     public void ApplyCharacterSelectionsToAllPlayers()
     {
         if (!IsServer) return;
         
-        var playerSessionData = PlayerSessionData.Instance;
-        if (playerSessionData == null)
+        Debug.Log($"SpawnManager: ApplyCharacterSelectionsToAllPlayers called");
+        
+        // Use a simpler approach: Apply to all connected clients directly
+        if (NetworkManager.Singleton == null)
         {
-            Debug.LogWarning("PlayerSessionData not found, cannot apply character selections");
+            Debug.LogWarning("SpawnManager: NetworkManager is null");
             return;
         }
         
-        var connectedSessions = playerSessionData.GetConnectedPlayerSessions();
-        Debug.Log($"SpawnManager: Applying character selections to {connectedSessions.Count} players");
-        
-        foreach (var session in connectedSessions)
+        foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
         {
-            if (session.selectedCharacterId != 0) // 0 is default/no selection
+            var clientId = clientPair.Key;
+            var client = clientPair.Value;
+            
+            if (client.PlayerObject != null)
             {
-                // Find the corresponding NetworkObject for this player
-                foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
-                {
-                    var client = clientPair.Value;
-                    if (client.PlayerObject != null)
-                    {
-                        var characterLoader = client.PlayerObject.GetComponent<UltraSimpleMeshSwapper>();
-                        if (characterLoader != null)
-                        {
-                            var characterData = CharacterRegistry.Instance?.GetCharacterByID(session.selectedCharacterId);
-                            if (characterData != null)
-                            {
-                                Debug.Log($"SpawnManager: Applying character {characterData.characterName} to player {session.playerName} (ClientID: {client.ClientId})");
-                                
-                                // Apply character on the server
-                                characterLoader.LoadCharacter(characterData);
-                                
-                                // Sync to the specific client
-                                ApplyCharacterToPlayerClientRpc(session.selectedCharacterId, new ClientRpcParams
-                                {
-                                    Send = new ClientRpcSendParams
-                                    {
-                                        TargetClientIds = new ulong[] { client.ClientId }
-                                    }
-                                });
-                                break; // Found the client for this session, move to next session
-                            }
-                        }
-                    }
-                }
+                Debug.Log($"SpawnManager: Applying character selection to client {clientId}");
+                ApplyCharacterSelectionToSinglePlayer(clientId, client.PlayerObject.gameObject);
+            }
+            else
+            {
+                Debug.LogWarning($"SpawnManager: Client {clientId} has no PlayerObject");
             }
         }
     }
     
-    [ClientRpc]
-    private void ApplyCharacterToPlayerClientRpc(int characterId, ClientRpcParams clientRpcParams = default)
-    {
-        // On the client side, find the local player's UltraSimpleMeshSwapper and apply the character
-        var characterLoaders = FindObjectsByType<UltraSimpleMeshSwapper>(FindObjectsSortMode.None);
-        
-        foreach (var loader in characterLoaders)
-        {
-            var networkBehaviour = loader.GetComponent<NetworkBehaviour>();
-            if (networkBehaviour != null && networkBehaviour.IsOwner)
-            {
-                var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
-                if (characterData != null)
-                {
-                    loader.LoadCharacter(characterData);
-                    Debug.Log($"[CLIENT] SpawnManager applied character {characterData.characterName} to local player");
-                }
-                break;
-            }
-        }
-    }
+    // REMOVED: Old ClientRpc system replaced with NetworkVariable system in UltraSimpleMeshSwapper
     
     private void MovePlayerToSpawn(NetworkObject playerObject, ulong clientId)
     {

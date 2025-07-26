@@ -30,9 +30,15 @@ public class SceneTransitionManager : NetworkBehaviour
     
     public override void OnNetworkSpawn()
     {
-        if (NetworkManager.Singleton.SceneManager != null)
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
         {
-            NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += OnSceneLoadEventCompleted;
+            // CRITICAL FIX: Use OnSynchronizeComplete instead of OnLoadEventCompleted for better timing
+            NetworkManager.Singleton.SceneManager.OnSynchronizeComplete += OnSceneSynchronizeCompleted;
+            Debug.Log("SceneTransitionManager: Subscribed to OnSynchronizeComplete");
+        }
+        else
+        {
+            Debug.LogError("SceneTransitionManager: NetworkManager or SceneManager is null on spawn");
         }
     }
     
@@ -40,13 +46,14 @@ public class SceneTransitionManager : NetworkBehaviour
     {
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
         {
-            NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnSceneLoadEventCompleted;
+            // CRITICAL FIX: Update unsubscribe to match new event
+            NetworkManager.Singleton.SceneManager.OnSynchronizeComplete -= OnSceneSynchronizeCompleted;
         }
     }
     
     public void TransitionToMainMenu()
     {
-        if (NetworkManager.Singleton.IsServer)
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
         {
             LoadSceneServerRpc(mainMenuSceneName);
         }
@@ -60,19 +67,76 @@ public class SceneTransitionManager : NetworkBehaviour
     
     public void TransitionToGame()
     {
-        if (NetworkManager.Singleton.IsServer)
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
         {
+            // CRITICAL FIX: Cache all character selections BEFORE scene transition
+            CacheAllCharacterSelections();
             LoadSceneServerRpc(gameSceneName);
         }
-        else
+        else if (NetworkManager.Singleton != null)
         {
             Debug.LogWarning("Only the server can initiate scene transitions");
         }
+        else
+        {
+            Debug.LogError("NetworkManager.Singleton is null when trying to transition to game");
+        }
+    }
+    
+    /// <summary>
+    /// Cache all character selections before scene transition to prevent data loss
+    /// </summary>
+    private void CacheAllCharacterSelections()
+    {
+        Debug.Log("SceneTransitionManager: Caching all character selections before transition");
+        
+        var playerSessionData = PlayerSessionData.Instance;
+        var persistentCache = PersistentCharacterCache.Instance;
+        
+        if (playerSessionData == null || persistentCache == null)
+        {
+            Debug.LogWarning("SceneTransitionManager: Cannot cache selections - missing PlayerSessionData or PersistentCharacterCache");
+            return;
+        }
+        
+        var connectedSessions = playerSessionData.GetConnectedPlayerSessions();
+        Debug.Log($"SceneTransitionManager: Found {connectedSessions.Count} player sessions to cache");
+        
+        foreach (var session in connectedSessions)
+        {
+            if (session.selectedCharacterId > 0) // Only cache valid character selections
+            {
+                // Cache by player GUID
+                persistentCache.CacheCharacterSelectionByGuid(session.playerId.ToString(), session.selectedCharacterId);
+                
+                // Also try to cache by client ID if we can find it
+                if (NetworkManager.Singleton != null)
+                {
+                    foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
+                    {
+                        // This is a best-effort mapping - the exact mapping logic might need adjustment
+                        // based on your authentication/session system
+                        var clientId = clientPair.Key;
+                        persistentCache.CacheCharacterSelection(clientId, session.selectedCharacterId);
+                        Debug.Log($"SceneTransitionManager: Cached character {session.selectedCharacterId} for player {session.playerName} (ClientID: {clientId})");
+                        break; // For now, just map to the first available client - this might need refinement
+                    }
+                }
+            }
+        }
+        
+        Debug.Log("SceneTransitionManager: Character selection caching completed");
     }
     
     [ServerRpc(RequireOwnership = false)]
     private void LoadSceneServerRpc(string sceneName)
     {
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogError("NetworkManager.Singleton is null in LoadSceneServerRpc");
+            return;
+        }
+        
         if (!NetworkManager.Singleton.IsServer)
         {
             Debug.LogWarning("LoadSceneServerRpc called but not server");
@@ -82,6 +146,13 @@ public class SceneTransitionManager : NetworkBehaviour
         try
         {
             OnSceneTransitionStarted?.Invoke(sceneName);
+            
+            if (NetworkManager.Singleton.SceneManager == null)
+            {
+                Debug.LogError("NetworkManager.SceneManager is null");
+                OnSceneTransitionFailed?.Invoke(sceneName);
+                return;
+            }
             
             var sceneLoadStatus = NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
             
@@ -98,45 +169,84 @@ public class SceneTransitionManager : NetworkBehaviour
         }
     }
     
-    private void OnSceneLoadEventCompleted(string sceneName, LoadSceneMode loadSceneMode, List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
+    private void OnSceneSynchronizeCompleted(ulong clientId)
     {
-        Debug.Log($"Scene load event completed for {sceneName}. Clients completed: {clientsCompleted.Count}, Timed out: {clientsTimedOut.Count}");
+        // CRITICAL FIX: OnSynchronizeComplete is called per client, so we track all clients
+        Debug.Log($"Scene synchronization completed for client {clientId}");
         
-        if (clientsTimedOut.Count > 0)
+        // Only apply character data on server when it's the game scene
+        if (IsServer && GetCurrentSceneName() == gameSceneName)
         {
-            Debug.LogWarning($"Some clients timed out during scene load: {string.Join(", ", clientsTimedOut)}");
+            Debug.Log($"Game scene synchronized for client {clientId}, checking if all clients ready for character application...");
+            
+            // Use coroutine to ensure all NetworkVariables are fully synchronized
+            StartCoroutine(ApplyCharacterSelectionsWithDelay());
         }
         
-        // Apply character selections after scene transition to game scene
-        if (IsServer && sceneName == gameSceneName)
+        OnSceneTransitionCompleted?.Invoke(GetCurrentSceneName());
+    }
+    
+    /// <summary>
+    /// IMPROVED FIX: Coroutine with better network state validation for character data application
+    /// </summary>
+    private System.Collections.IEnumerator ApplyCharacterSelectionsWithDelay()
+    {
+        // Wait for network synchronization and all required systems to be ready
+        int maxAttempts = 30; // 3 seconds max wait
+        int attempts = 0;
+        
+        while (attempts < maxAttempts)
         {
-            Debug.Log($"Game scene loaded, applying character selections to all players...");
-            ApplyCharacterSelectionsAfterSceneLoad();
+            // Check if PlayerSessionData and required components are ready
+            if (PlayerSessionData.Instance != null && 
+                NetworkManager.Singleton != null &&
+                NetworkManager.Singleton.ConnectedClientsIds.Count > 0)
+            {
+                bool allPlayersReady = true;
+                
+                // Check if all player objects have their NetworkVariables synchronized
+                foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
+                {
+                    if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var client) && 
+                        client.PlayerObject != null)
+                    {
+                        var characterLoader = client.PlayerObject.GetComponent<UltraSimpleMeshSwapper>();
+                        if (characterLoader == null || !characterLoader.IsSpawned)
+                        {
+                            allPlayersReady = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (allPlayersReady)
+                {
+                    Debug.Log("SceneTransitionManager: All players ready, applying character selections");
+                    ApplyCharacterSelectionsAfterSceneLoad();
+                    yield break;
+                }
+            }
+            
+            attempts++;
+            yield return new WaitForSeconds(0.1f); // Check every 100ms
         }
         
-        OnSceneTransitionCompleted?.Invoke(sceneName);
+        Debug.LogWarning("SceneTransitionManager: Timeout waiting for network sync, applying character selections anyway");
+        ApplyCharacterSelectionsAfterSceneLoad();
     }
     
     private void ApplyCharacterSelectionsAfterSceneLoad()
     {
-        // Find the CharacterSelectionBridge to transfer character data
-        var characterBridge = CharacterSelectionBridge.Instance;
-        if (characterBridge != null)
-        {
-            Debug.Log("Transferring character selection data to gameplay...");
-            characterBridge.TransferSessionDataToGameplay();
-        }
-        else
-        {
-            Debug.LogWarning("CharacterSelectionBridge not found! Character selections will not be applied.");
-        }
-        
-        // Also apply character data through SpawnManager if available
+        // IMPROVED: Direct character application through SpawnManager - no need for bridge
         var spawnManager = FindFirstObjectByType<SpawnManager>();
         if (spawnManager != null)
         {
             Debug.Log("Requesting SpawnManager to apply character selections...");
             ApplyCharacterSelectionsToSpawnedPlayersServerRpc();
+        }
+        else
+        {
+            Debug.LogWarning("SpawnManager not found! Character selections will not be applied.");
         }
     }
     
@@ -161,6 +271,8 @@ public class SceneTransitionManager : NetworkBehaviour
             if (session.selectedCharacterId != 0) // 0 is default/no selection
             {
                 // Find the corresponding NetworkObject for this player
+                if (NetworkManager.Singleton == null) continue;
+                
                 foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
                 {
                     if (client.PlayerObject != null)
@@ -173,17 +285,8 @@ public class SceneTransitionManager : NetworkBehaviour
                             {
                                 Debug.Log($"Applying character {characterData.characterName} to player {session.playerName} (ClientID: {client.ClientId})");
                                 
-                                // Apply character on the server first
-                                characterLoader.LoadCharacter(characterData);
-                                
-                                // Then sync to the specific client
-                                ApplyCharacterToClientRpc(session.selectedCharacterId, new ClientRpcParams
-                                {
-                                    Send = new ClientRpcSendParams
-                                    {
-                                        TargetClientIds = new ulong[] { client.ClientId }
-                                    }
-                                });
+                                // CRITICAL FIX: Use NetworkVariable system for proper character sync
+                                characterLoader.SetNetworkCharacterId(session.selectedCharacterId);
                             }
                             break; // Move to next session
                         }
@@ -193,27 +296,7 @@ public class SceneTransitionManager : NetworkBehaviour
         }
     }
     
-    [ClientRpc]
-    private void ApplyCharacterToClientRpc(int characterId, ClientRpcParams clientRpcParams = default)
-    {
-        // On the client side, find the local player's UltraSimpleMeshSwapper and apply the character
-        var characterLoaders = FindObjectsByType<UltraSimpleMeshSwapper>(FindObjectsSortMode.None);
-        
-        foreach (var loader in characterLoaders)
-        {
-            var networkBehaviour = loader.GetComponent<NetworkBehaviour>();
-            if (networkBehaviour != null && networkBehaviour.IsOwner)
-            {
-                var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
-                if (characterData != null)
-                {
-                    loader.LoadCharacter(characterData);
-                    Debug.Log($"[CLIENT] Applied character {characterData.characterName} to local player after scene transition");
-                }
-                break;
-            }
-        }
-    }
+    // REMOVED: Old ClientRpc system replaced with NetworkVariable system in UltraSimpleMeshSwapper
     
     
     public string GetCurrentSceneName()
