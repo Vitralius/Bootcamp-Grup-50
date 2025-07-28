@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// XPOrb - Collectible experience orb that spawns when enemies die
@@ -34,12 +35,21 @@ public class XPOrb : NetworkBehaviour
     private Vector3 originalPosition;
     private Vector3 randomOffset;
     
+    // Performance optimization - cached player references
+    private static List<ExperienceComponent> cachedPlayers = new List<ExperienceComponent>();
+    private static float lastPlayerCacheUpdate = 0f;
+    private const float PLAYER_CACHE_UPDATE_INTERVAL = 1f; // Update cache every 1 second
+    
     // Components
     private Rigidbody rb;
     private Collider orbCollider;
     
     // Network sync
     private NetworkVariable<bool> networkIsCollected = new NetworkVariable<bool>(false);
+    
+    // Collection state tracking
+    public bool IsCollected => networkIsCollected.Value;
+    private bool collectionInProgress = false;
 
     public override void OnNetworkSpawn()
     {
@@ -165,15 +175,25 @@ public class XPOrb : NetworkBehaviour
 
     private void FindNearestPlayer()
     {
+        // PERFORMANCE FIX: Use cached player list instead of FindObjectsByType every frame
+        UpdatePlayerCacheIfNeeded();
+        
         GameObject nearestPlayer = null;
         float nearestDistance = float.MaxValue;
         
-        // Find all players with ExperienceComponent
-        ExperienceComponent[] experienceComponents = FindObjectsByType<ExperienceComponent>(FindObjectsSortMode.None);
-        
-        foreach (ExperienceComponent expComp in experienceComponents)
+        // Use cached players list
+        for (int i = cachedPlayers.Count - 1; i >= 0; i--)
         {
-            if (expComp != null && expComp.IsOwner) // Only consider player owners
+            ExperienceComponent expComp = cachedPlayers[i];
+            
+            // Remove null or destroyed players from cache
+            if (expComp == null || expComp.gameObject == null)
+            {
+                cachedPlayers.RemoveAt(i);
+                continue;
+            }
+            
+            if (expComp.IsOwner) // Only consider player owners
             {
                 float distance = Vector3.Distance(transform.position, expComp.transform.position);
                 if (distance < nearestDistance && distance <= attractionRange)
@@ -194,6 +214,23 @@ public class XPOrb : NetworkBehaviour
         {
             targetPlayer = null;
             isBeingAttracted = false;
+        }
+    }
+    
+    /// <summary>
+    /// Update cached player list periodically for performance
+    /// </summary>
+    private static void UpdatePlayerCacheIfNeeded()
+    {
+        if (Time.time - lastPlayerCacheUpdate > PLAYER_CACHE_UPDATE_INTERVAL)
+        {
+            cachedPlayers.Clear();
+            
+            // Only do expensive FindObjectsByType once per second
+            ExperienceComponent[] experienceComponents = FindObjectsByType<ExperienceComponent>(FindObjectsSortMode.None);
+            cachedPlayers.AddRange(experienceComponents);
+            
+            lastPlayerCacheUpdate = Time.time;
         }
     }
 
@@ -225,7 +262,7 @@ public class XPOrb : NetworkBehaviour
 
     private void CheckForCollection()
     {
-        if (targetPlayer != null)
+        if (targetPlayer != null && !isCollected && !collectionInProgress)
         {
             float distanceToPlayer = Vector3.Distance(transform.position, targetPlayer.position);
             if (distanceToPlayer <= collectionRange)
@@ -237,26 +274,17 @@ public class XPOrb : NetworkBehaviour
 
     private void CollectOrb()
     {
-        if (isCollected) return;
+        if (isCollected || collectionInProgress) return;
         
         // Get experience component
         ExperienceComponent expComp = targetPlayer.GetComponent<ExperienceComponent>();
         if (expComp != null)
         {
-            // Add XP to player
-            expComp.AddXP(xpValue);
+            // NEW SYSTEM: Let ExperienceComponent handle validation via server
+            NetworkObjectReference orbRef = new NetworkObjectReference(GetComponent<NetworkObject>());
+            expComp.CollectXPOrb(xpValue, transform.position, orbRef);
             
-            Debug.Log($"XPOrb: Collected by {targetPlayer.name} for {xpValue} XP");
-            
-            // Mark as collected
-            isCollected = true;
-            networkIsCollected.Value = true;
-            
-            // Play collection effect
-            PlayCollectionEffectClientRpc();
-            
-            // Despawn orb
-            Invoke(nameof(DespawnOrb), 0.1f); // Small delay for effect
+            Debug.Log($"XPOrb: Collection requested by {targetPlayer.name} for {xpValue} XP");
         }
     }
 
@@ -328,22 +356,57 @@ public class XPOrb : NetworkBehaviour
         if (newValue && !previousValue)
         {
             isCollected = true;
+            collectionInProgress = true;
             
-            // Disable visual on all clients
-            if (visualEffect != null)
-                visualEffect.SetActive(false);
+            // Disable collider to prevent further collection attempts
+            if (orbCollider != null)
+                orbCollider.enabled = false;
+            
+            // Stop movement
+            if (rb != null)
+                rb.linearVelocity = Vector3.zero;
+            
+            // Visual will be handled by collection effect
         }
     }
 
-    // Trigger-based collection (backup method)
+    /// <summary>
+    /// Mark orb as collected (called by ExperienceComponent on server)
+    /// </summary>
+    public void MarkAsCollected()
+    {
+        if (!IsServer)
+        {
+            Debug.LogError("XPOrb: MarkAsCollected can only be called on server!");
+            return;
+        }
+        
+        if (isCollected || collectionInProgress) return;
+        
+        collectionInProgress = true;
+        isCollected = true;
+        networkIsCollected.Value = true;
+        
+        Debug.Log($"XPOrb: Marked as collected by server");
+        
+        // Play collection effect
+        PlayCollectionEffectClientRpc();
+        
+        // Despawn orb
+        Invoke(nameof(DespawnOrb), 0.2f); // Small delay for effect
+    }
+    
+    // Trigger-based collection (backup method - now just requests collection)
     private void OnTriggerEnter(Collider other)
     {
-        if (!IsServer || isCollected) return;
+        if (!IsServer || isCollected || collectionInProgress) return;
         
         ExperienceComponent expComp = other.GetComponent<ExperienceComponent>();
         if (expComp != null && expComp.IsOwner)
         {
-            CollectOrb();
+            // Set target for distance-based collection
+            targetPlayer = other.transform;
+            isBeingAttracted = true;
         }
     }
 

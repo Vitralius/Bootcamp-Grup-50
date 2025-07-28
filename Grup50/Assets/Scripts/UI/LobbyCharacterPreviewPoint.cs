@@ -104,10 +104,11 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
             // Only instantiate if no existing preview is assigned
             Debug.Log($"[PREVIEW-{previewPointIndex}] No existing preview assigned, instantiating from prefab");
             
-            // Destroy existing preview if any
+            // Destroy existing preview if any (NETWORK SAFE)
             if (currentCharacterPreview != null && currentCharacterPreview != existingCharacterPreview)
             {
-                DestroyImmediate(currentCharacterPreview);
+                DestroyPreviewSafely(currentCharacterPreview);
+                currentCharacterPreview = null;
             }
             
             // Instantiate base character at spawn point
@@ -719,16 +720,18 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         var networkBehaviours = previewObject.GetComponentsInChildren<NetworkBehaviour>();
         foreach (var netBehaviour in networkBehaviours)
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Removing NetworkBehaviour: {netBehaviour.GetType().Name}");
-            DestroyImmediate(netBehaviour);
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Disabling NetworkBehaviour: {netBehaviour.GetType().Name}");
+            // NETWORK FIX: Disable component instead of destroying it to prevent network errors
+            netBehaviour.enabled = false;
         }
         
-        // Remove NetworkObject components
+        // Remove NetworkObject components (NETWORK SAFE)
         var networkObjects = previewObject.GetComponentsInChildren<NetworkObject>();
         foreach (var netObject in networkObjects)
         {
-            Debug.Log($"[PREVIEW-{previewPointIndex}] Removing NetworkObject from {netObject.name}");
-            DestroyImmediate(netObject);
+            Debug.Log($"[PREVIEW-{previewPointIndex}] Disabling NetworkObject on {netObject.name}");
+            // NETWORK FIX: Disable instead of destroy to prevent "Invalid Destroy" errors
+            netObject.enabled = false;
         }
         
         // Remove any remaining network-related components by name
@@ -743,13 +746,61 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
                 // Don't remove critical components
                 if (!(component is Transform || component is Renderer || component is Animator || component is SkinnedMeshRenderer))
                 {
-                    Debug.Log($"[PREVIEW-{previewPointIndex}] Removing network-related component: {component.GetType().Name}");
-                    DestroyImmediate(component);
+                    Debug.Log($"[PREVIEW-{previewPointIndex}] Disabling network-related component: {component.GetType().Name}");
+                    // NETWORK FIX: Disable instead of destroy to prevent network errors
+                    if (component is Behaviour behaviour)
+                    {
+                        behaviour.enabled = false;
+                    }
                 }
             }
         }
         
         Debug.Log($"[PREVIEW-{previewPointIndex}] Network component removal complete for {previewObject.name}");
+    }
+    
+    /// <summary>
+    /// NETWORK SAFE: Properly destroy preview objects without causing network errors
+    /// </summary>
+    private void DestroyPreviewSafely(GameObject previewObject)
+    {
+        if (previewObject == null) return;
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Safely destroying preview: {previewObject.name}");
+        
+        // First, check if this object has NetworkObject component
+        NetworkObject netObj = previewObject.GetComponent<NetworkObject>();
+        if (netObj != null)
+        {
+            // CRITICAL FIX: Never destroy NetworkObjects on client - this causes the "Invalid Destroy" error
+            if (netObj.IsSpawned)
+            {
+                Debug.LogWarning($"[PREVIEW-{previewPointIndex}] Cannot destroy spawned NetworkObject {previewObject.name} - this should not happen for previews!");
+                // Just disable it instead
+                previewObject.SetActive(false);
+                return;
+            }
+            else
+            {
+                // Safe to destroy non-spawned NetworkObjects
+                Debug.Log($"[PREVIEW-{previewPointIndex}] NetworkObject not spawned, safe to destroy");
+            }
+        }
+        
+        // Remove all network components first (safely)
+        RemoveAllNetworkComponents(previewObject);
+        
+        // Now safe to destroy the pure preview object
+        if (Application.isPlaying)
+        {
+            Destroy(previewObject);
+        }
+        else
+        {
+            DestroyImmediate(previewObject);
+        }
+        
+        Debug.Log($"[PREVIEW-{previewPointIndex}] Preview destroyed safely");
     }
     
     /// <summary>
@@ -806,7 +857,8 @@ public class LobbyCharacterPreviewPoint : NetworkBehaviour
         
         if (currentCharacterPreview != null)
         {
-            DestroyImmediate(currentCharacterPreview);
+            DestroyPreviewSafely(currentCharacterPreview);
+            currentCharacterPreview = null;
         }
         
         base.OnDestroy();

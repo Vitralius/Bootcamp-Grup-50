@@ -51,6 +51,13 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
     
     public override void OnNetworkSpawn()
     {
+        // NETWORK FIX: Skip network spawn if in preview mode to prevent disabled NetworkBehaviour warnings
+        if (isPreviewMode)
+        {
+            Debug.Log($"CleanCharacterLoader: Skipping OnNetworkSpawn for preview mode on {gameObject.name}");
+            return;
+        }
+        
         Debug.Log($"CleanCharacterLoader: OnNetworkSpawn called on {gameObject.name} (IsOwner: {IsOwner})");
         
         // CRITICAL FIX: Subscribe to NetworkVariable changes for character sync
@@ -84,8 +91,8 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
                 NetworkManager.Singleton.IsConnectedClient)
             {
                 // Additional check: wait for scene to be fully loaded
-                if (SceneTransitionManager.Instance != null && 
-                    (SceneTransitionManager.Instance.IsInMainMenu() || SceneTransitionManager.Instance.IsInGame()))
+                if (SimpleSceneTransition.Instance != null && 
+                    (SimpleSceneTransition.Instance.IsInLobby() || SimpleSceneTransition.Instance.IsInGame()))
                 {
                     break; // Network is ready
                 }
@@ -687,12 +694,20 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
     }
     
     /// <summary>
-    /// Sets preview mode
+    /// Sets preview mode - NETWORK SAFE
     /// </summary>
     public void SetPreviewMode(bool preview)
     {
         bool wasPreview = isPreviewMode;
         isPreviewMode = preview;
+        
+        Debug.Log($"CleanCharacterLoader: SetPreviewMode called - {wasPreview} → {preview} on {gameObject.name}");
+        
+        // NETWORK FIX: When entering preview mode, disable network components to prevent warnings
+        if (preview && !wasPreview)
+        {
+            DisableNetworkComponentsForPreview();
+        }
         
         // If preview mode changed, re-initialize to update components appropriately
         if (wasPreview != preview)
@@ -701,6 +716,37 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
             isInitialized = false; // Force re-initialization
             InitializeSafely();
         }
+    }
+    
+    /// <summary>
+    /// NETWORK FIX: Disable network components when in preview mode to prevent spawn warnings
+    /// </summary>
+    private void DisableNetworkComponentsForPreview()
+    {
+        if (!isPreviewMode) return;
+        
+        Debug.Log($"CleanCharacterLoader: Disabling network components for preview mode on {gameObject.name}");
+        
+        // Disable NetworkObject if present
+        NetworkObject netObj = GetComponent<NetworkObject>();
+        if (netObj != null)
+        {
+            netObj.enabled = false;
+            Debug.Log($"CleanCharacterLoader: Disabled NetworkObject on {gameObject.name}");
+        }
+        
+        // Disable other NetworkBehaviour components except this one
+        NetworkBehaviour[] networkBehaviours = GetComponentsInChildren<NetworkBehaviour>();
+        foreach (var netBehaviour in networkBehaviours)
+        {
+            if (netBehaviour != this && netBehaviour.enabled)
+            {
+                netBehaviour.enabled = false;
+                Debug.Log($"CleanCharacterLoader: Disabled NetworkBehaviour {netBehaviour.GetType().Name} on {netBehaviour.gameObject.name}");
+            }
+        }
+        
+        Debug.Log($"CleanCharacterLoader: Network components disabled for preview mode");
     }
     
     // Legacy test methods (keep for backwards compatibility)

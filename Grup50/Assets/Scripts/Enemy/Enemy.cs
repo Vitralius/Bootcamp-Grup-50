@@ -10,7 +10,7 @@ using StarterAssets;
 public class Enemy : NetworkBehaviour
 {
     [Header("Enemy Behavior")]
-    [SerializeField] private EnemyBehaviorType behaviorType = EnemyBehaviorType.ChasePlayer;
+    [SerializeField] private EnemyBehaviorType behaviorType = EnemyBehaviorType.Patrol;
     [SerializeField] private float detectionRange = 10f;
     [SerializeField] private float attackRange = 2f;
     [SerializeField] private float moveSpeed = 3.5f;
@@ -57,8 +57,33 @@ public class Enemy : NetworkBehaviour
 
     void Start()
     {
+        // Auto-detect behavior type if not explicitly set
+        AutoDetectBehaviorType();
+        
         InitializeComponents();
         InitializeBehavior();
+    }
+    
+    /// <summary>
+    /// Auto-detect behavior type based on setup
+    /// </summary>
+    private void AutoDetectBehaviorType()
+    {
+        // If patrol points are assigned, use patrol behavior
+        if (patrolPoints != null && patrolPoints.transform.childCount > 0)
+        {
+            if (behaviorType == EnemyBehaviorType.Patrol)
+            {
+                // Already set to patrol, keep it
+                Debug.Log($"Enemy {gameObject.name}: Using Patrol behavior (patrol points detected)");
+            }
+        }
+        // If no patrol points but behavior is set to patrol, switch to chase for survivorlike gameplay
+        else if (behaviorType == EnemyBehaviorType.Patrol)
+        {
+            behaviorType = EnemyBehaviorType.ChasePlayer;
+            Debug.Log($"Enemy {gameObject.name}: Switched to ChasePlayer behavior (no patrol points detected)");
+        }
     }
     
     public override void OnNetworkSpawn()
@@ -128,24 +153,38 @@ public class Enemy : NetworkBehaviour
             case EnemyBehaviorType.Hybrid:
                 InitializePatrolBehavior();
                 break;
+            case EnemyBehaviorType.ChasePlayer:
+                Debug.Log($"Enemy {gameObject.name}: Initialized with ChasePlayer behavior");
+                break;
         }
     }
 
     private void InitializePatrolBehavior()
     {
-        if (patrolPoints != null)
+        if (patrolPoints != null && patrolPoints.transform.childCount > 0)
         {
             isArrivedAtPatrol = true;
             patrolCounter = patrolPoints.transform.childCount;
             patrolPoints_array = new GameObject[patrolCounter];
             SetPatrolPoints();
             targetPatrolPoint = NextPatrolPoint();
+            
+            Debug.Log($"Enemy {gameObject.name}: Patrol behavior initialized with {patrolCounter} patrol points");
+        }
+        else
+        {
+            Debug.LogWarning($"Enemy {gameObject.name}: Patrol behavior selected but no patrol points assigned! Switching to ChasePlayer behavior.");
+            behaviorType = EnemyBehaviorType.ChasePlayer;
         }
     }
 
     void Update()
     {
-        if (!IsServer) return; // Only server controls enemy behavior
+        // For networked enemies, only server controls behavior
+        // For non-networked enemies, allow local control
+        bool canControlBehavior = !IsSpawned || IsServer;
+        
+        if (!canControlBehavior) return;
         
         switch (behaviorType)
         {
@@ -160,8 +199,8 @@ public class Enemy : NetworkBehaviour
                 break;
         }
         
-        // Update network position if changed significantly
-        if (Vector3.Distance(transform.position, networkPosition.Value) > 0.5f)
+        // Update network position if changed significantly (only for networked enemies)
+        if (IsSpawned && Vector3.Distance(transform.position, networkPosition.Value) > 0.5f)
         {
             networkPosition.Value = transform.position;
         }
@@ -428,5 +467,95 @@ public class Enemy : NetworkBehaviour
             Gizmos.color = isPlayerInRange ? Color.red : Color.orange;
             Gizmos.DrawLine(transform.position, targetPlayer.position);
         }
+        
+        // Draw patrol path if in patrol mode
+        if ((behaviorType == EnemyBehaviorType.Patrol || behaviorType == EnemyBehaviorType.Hybrid) && 
+            patrolPoints_array != null && patrolPoints_array.Length > 1)
+        {
+            Gizmos.color = Color.blue;
+            for (int i = 0; i < patrolPoints_array.Length; i++)
+            {
+                if (patrolPoints_array[i] != null)
+                {
+                    // Draw patrol point
+                    Gizmos.DrawWireSphere(patrolPoints_array[i].transform.position, 1f);
+                    
+                    // Draw line to next patrol point
+                    int nextIndex = (i + 1) % patrolPoints_array.Length;
+                    if (patrolPoints_array[nextIndex] != null)
+                    {
+                        Gizmos.DrawLine(patrolPoints_array[i].transform.position, 
+                                      patrolPoints_array[nextIndex].transform.position);
+                    }
+                }
+            }
+            
+            // Highlight current target
+            if (targetPatrolPoint < patrolPoints_array.Length && patrolPoints_array[targetPatrolPoint] != null)
+            {
+                Gizmos.color = Color.green;
+                Gizmos.DrawWireSphere(patrolPoints_array[targetPatrolPoint].transform.position, 1.5f);
+                Gizmos.DrawLine(transform.position, patrolPoints_array[targetPatrolPoint].transform.position);
+            }
+        }
+    }
+    
+    // Debug methods
+    [ContextMenu("Debug - Show Current Settings")]
+    private void DebugShowSettings()
+    {
+        Debug.Log($"Enemy Settings - Behavior: {behaviorType}, Speed: {moveSpeed}, Damage: {damage}, Detection: {detectionRange}");
+        
+        if (behaviorType == EnemyBehaviorType.Patrol || behaviorType == EnemyBehaviorType.Hybrid)
+        {
+            if (patrolPoints != null)
+            {
+                Debug.Log($"Patrol Points: {patrolPoints.name} with {patrolPoints.transform.childCount} children");
+                Debug.Log($"Current Target: {targetPatrolPoint}, IsArrived: {isArrivedAtPatrol}");
+                if (patrolPoints_array != null)
+                {
+                    Debug.Log($"Patrol Array Length: {patrolPoints_array.Length}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("Patrol behavior but no patrol points assigned!");
+            }
+        }
+    }
+    
+    [ContextMenu("Debug - Force Patrol Behavior")]
+    private void DebugForcePatrolBehavior()
+    {
+        behaviorType = EnemyBehaviorType.Patrol;
+        InitializeBehavior();
+        Debug.Log("Forced patrol behavior and re-initialized");
+    }
+    
+    [ContextMenu("Debug - Force Chase Behavior")]
+    private void DebugForceChaseBehavior()
+    {
+        behaviorType = EnemyBehaviorType.ChasePlayer;
+        Debug.Log("Forced chase behavior");
+    }
+    
+    [ContextMenu("Debug - Test Patrol Setup")]
+    private void DebugTestPatrolSetup()
+    {
+        Debug.Log("=== Patrol Setup Test ===");
+        Debug.Log($"Behavior Type: {behaviorType}");
+        Debug.Log($"Patrol Points Object: {(patrolPoints != null ? patrolPoints.name : "NULL")}");
+        if (patrolPoints != null)
+        {
+            Debug.Log($"Child Count: {patrolPoints.transform.childCount}");
+            for (int i = 0; i < patrolPoints.transform.childCount; i++)
+            {
+                Transform child = patrolPoints.transform.GetChild(i);
+                Debug.Log($"  Point {i}: {child.name} at {child.position}");
+            }
+        }
+        Debug.Log($"Patrol Array: {(patrolPoints_array != null ? patrolPoints_array.Length.ToString() : "NULL")}");
+        Debug.Log($"NavMeshAgent: {(navMeshAgent != null ? "Found" : "NULL")}");
+        Debug.Log("========================");
     }
 }

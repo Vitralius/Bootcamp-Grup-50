@@ -1,20 +1,35 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 using UnityEngine.SceneManagement;
+using System.Linq;
 
-public class SceneTransitionManager : NetworkBehaviour
+/// <summary>
+/// Clean and Simple Scene Transition Manager for Unity Netcode
+/// Handles transitions from lobby to game scene with player data persistence
+/// Based on Unity Netcode best practices
+/// </summary>
+public class SimpleSceneTransition : NetworkBehaviour
 {
-    public static SceneTransitionManager Instance { get; private set; }
+    public static SimpleSceneTransition Instance { get; private set; }
     
-    [Header("Scene Names - Configure in Inspector")]
-    [SerializeField] private string mainMenuSceneName = "SampleScene";
+    [Header("Scene Configuration")]
+    [SerializeField] private string lobbySceneName = "SampleScene";
     [SerializeField] private string gameSceneName = "Playground";
     
-    public event Action<string> OnSceneTransitionStarted;
-    public event Action<string> OnSceneTransitionCompleted;
-    public event Action<string> OnSceneTransitionFailed;
+    [Header("Player Data Storage")]
+    private NetworkVariable<bool> isTransitioning = new NetworkVariable<bool>(false);
+    
+    [System.Serializable]
+    public struct PlayerData
+    {
+        public ulong clientId;
+        public int characterId;
+        public string playerName;
+    }
+    
+    // Store player data for scene transition
+    private System.Collections.Generic.Dictionary<ulong, PlayerData> playerDataCache = 
+        new System.Collections.Generic.Dictionary<ulong, PlayerData>();
     
     private void Awake()
     {
@@ -30,294 +45,321 @@ public class SceneTransitionManager : NetworkBehaviour
     
     public override void OnNetworkSpawn()
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
+        if (NetworkManager.Singleton?.SceneManager != null)
         {
-            // CRITICAL FIX: Use OnSynchronizeComplete instead of OnLoadEventCompleted for better timing
-            NetworkManager.Singleton.SceneManager.OnSynchronizeComplete += OnSceneSynchronizeCompleted;
-            Debug.Log("SceneTransitionManager: Subscribed to OnSynchronizeComplete");
-        }
-        else
-        {
-            Debug.LogError("SceneTransitionManager: NetworkManager or SceneManager is null on spawn");
+            // Subscribe to scene events for proper timing
+            NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += OnSceneLoadCompleted;
+            Debug.Log("[SimpleSceneTransition] Subscribed to scene events");
         }
     }
     
     public override void OnNetworkDespawn()
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
+        if (NetworkManager.Singleton?.SceneManager != null)
         {
-            // CRITICAL FIX: Update unsubscribe to match new event
-            NetworkManager.Singleton.SceneManager.OnSynchronizeComplete -= OnSceneSynchronizeCompleted;
-        }
-    }
-    
-    public void TransitionToMainMenu()
-    {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
-        {
-            LoadSceneServerRpc(mainMenuSceneName);
-        }
-        else
-        {
-            // Non-networked transition for clients leaving multiplayer
-            SceneManager.LoadScene(mainMenuSceneName);
-        }
-    }
-    
-    
-    public void TransitionToGame()
-    {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
-        {
-            // CRITICAL FIX: Cache all character selections BEFORE scene transition
-            CacheAllCharacterSelections();
-            LoadSceneServerRpc(gameSceneName);
-        }
-        else if (NetworkManager.Singleton != null)
-        {
-            Debug.LogWarning("Only the server can initiate scene transitions");
-        }
-        else
-        {
-            Debug.LogError("NetworkManager.Singleton is null when trying to transition to game");
+            NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnSceneLoadCompleted;
         }
     }
     
     /// <summary>
-    /// Cache all character selections before scene transition to prevent data loss
+    /// Start game transition from lobby to game scene
+    /// Only server/host can call this
     /// </summary>
-    private void CacheAllCharacterSelections()
+    public void StartGameTransition()
     {
-        Debug.Log("SceneTransitionManager: Caching all character selections before transition");
-        
-        var playerSessionData = PlayerSessionData.Instance;
-        var persistentCache = PersistentCharacterCache.Instance;
-        
-        if (playerSessionData == null || persistentCache == null)
-        {
-            Debug.LogWarning("SceneTransitionManager: Cannot cache selections - missing PlayerSessionData or PersistentCharacterCache");
-            return;
-        }
-        
-        var connectedSessions = playerSessionData.GetConnectedPlayerSessions();
-        Debug.Log($"SceneTransitionManager: Found {connectedSessions.Count} player sessions to cache");
-        
-        foreach (var session in connectedSessions)
-        {
-            if (session.selectedCharacterId > 0) // Only cache valid character selections
-            {
-                // Cache by player GUID
-                persistentCache.CacheCharacterSelectionByGuid(session.playerId.ToString(), session.selectedCharacterId);
-                
-                // Also try to cache by client ID if we can find it
-                if (NetworkManager.Singleton != null)
-                {
-                    foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
-                    {
-                        // This is a best-effort mapping - the exact mapping logic might need adjustment
-                        // based on your authentication/session system
-                        var clientId = clientPair.Key;
-                        persistentCache.CacheCharacterSelection(clientId, session.selectedCharacterId);
-                        Debug.Log($"SceneTransitionManager: Cached character {session.selectedCharacterId} for player {session.playerName} (ClientID: {clientId})");
-                        break; // For now, just map to the first available client - this might need refinement
-                    }
-                }
-            }
-        }
-        
-        Debug.Log("SceneTransitionManager: Character selection caching completed");
-    }
-    
-    [ServerRpc(RequireOwnership = false)]
-    private void LoadSceneServerRpc(string sceneName)
-    {
-        if (NetworkManager.Singleton == null)
-        {
-            Debug.LogError("NetworkManager.Singleton is null in LoadSceneServerRpc");
-            return;
-        }
-        
         if (!NetworkManager.Singleton.IsServer)
         {
-            Debug.LogWarning("LoadSceneServerRpc called but not server");
+            Debug.LogWarning("[SimpleSceneTransition] Only server can start game transition");
             return;
         }
         
-        try
+        if (isTransitioning.Value)
         {
-            OnSceneTransitionStarted?.Invoke(sceneName);
-            
-            if (NetworkManager.Singleton.SceneManager == null)
-            {
-                Debug.LogError("NetworkManager.SceneManager is null");
-                OnSceneTransitionFailed?.Invoke(sceneName);
-                return;
-            }
-            
-            var sceneLoadStatus = NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
-            
-            if (sceneLoadStatus != SceneEventProgressStatus.Started)
-            {
-                Debug.LogError($"Failed to start scene load for {sceneName}. Status: {sceneLoadStatus}");
-                OnSceneTransitionFailed?.Invoke(sceneName);
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"Exception during scene transition to {sceneName}: {e.Message}");
-            OnSceneTransitionFailed?.Invoke(sceneName);
-        }
-    }
-    
-    private void OnSceneSynchronizeCompleted(ulong clientId)
-    {
-        // CRITICAL FIX: OnSynchronizeComplete is called per client, so we track all clients
-        Debug.Log($"Scene synchronization completed for client {clientId}");
-        
-        // Only apply character data on server when it's the game scene
-        if (IsServer && GetCurrentSceneName() == gameSceneName)
-        {
-            Debug.Log($"Game scene synchronized for client {clientId}, checking if all clients ready for character application...");
-            
-            // Use coroutine to ensure all NetworkVariables are fully synchronized
-            StartCoroutine(ApplyCharacterSelectionsWithDelay());
+            Debug.LogWarning("[SimpleSceneTransition] Transition already in progress");
+            return;
         }
         
-        OnSceneTransitionCompleted?.Invoke(GetCurrentSceneName());
+        Debug.Log("[SimpleSceneTransition] Starting game transition...");
+        
+        // 1. Cache all player data before transition
+        CachePlayerData();
+        
+        // 2. Set transitioning state
+        isTransitioning.Value = true;
+        
+        // 3. Load game scene
+        LoadGameScene();
     }
     
     /// <summary>
-    /// IMPROVED FIX: Coroutine with better network state validation for character data application
+    /// Return to lobby scene
+    /// Only server/host can call this
     /// </summary>
-    private System.Collections.IEnumerator ApplyCharacterSelectionsWithDelay()
+    public void ReturnToLobby()
     {
-        // Wait for network synchronization and all required systems to be ready
-        int maxAttempts = 30; // 3 seconds max wait
-        int attempts = 0;
-        
-        while (attempts < maxAttempts)
+        if (!NetworkManager.Singleton.IsServer)
         {
-            // Check if PlayerSessionData and required components are ready
-            if (PlayerSessionData.Instance != null && 
-                NetworkManager.Singleton != null &&
-                NetworkManager.Singleton.ConnectedClientsIds.Count > 0)
-            {
-                bool allPlayersReady = true;
-                
-                // Check if all player objects have their NetworkVariables synchronized
-                foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
-                {
-                    if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out var client) && 
-                        client.PlayerObject != null)
-                    {
-                        var characterLoader = client.PlayerObject.GetComponent<UltraSimpleMeshSwapper>();
-                        if (characterLoader == null || !characterLoader.IsSpawned)
-                        {
-                            allPlayersReady = false;
-                            break;
-                        }
-                    }
-                }
-                
-                if (allPlayersReady)
-                {
-                    Debug.Log("SceneTransitionManager: All players ready, applying character selections");
-                    ApplyCharacterSelectionsAfterSceneLoad();
-                    yield break;
-                }
-            }
-            
-            attempts++;
-            yield return new WaitForSeconds(0.1f); // Check every 100ms
+            Debug.LogWarning("[SimpleSceneTransition] Only server can return to lobby");
+            return;
         }
         
-        Debug.LogWarning("SceneTransitionManager: Timeout waiting for network sync, applying character selections anyway");
-        ApplyCharacterSelectionsAfterSceneLoad();
-    }
-    
-    private void ApplyCharacterSelectionsAfterSceneLoad()
-    {
-        // IMPROVED: Direct character application through SpawnManager - no need for bridge
-        var spawnManager = FindFirstObjectByType<SpawnManager>();
-        if (spawnManager != null)
+        Debug.Log("[SimpleSceneTransition] Returning to lobby...");
+        
+        isTransitioning.Value = true;
+        
+        var status = NetworkManager.Singleton.SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
+        if (status == SceneEventProgressStatus.Started)
         {
-            Debug.Log("Requesting SpawnManager to apply character selections...");
-            ApplyCharacterSelectionsToSpawnedPlayersServerRpc();
+            Debug.Log($"[SimpleSceneTransition] Loading lobby scene: {lobbySceneName}");
         }
         else
         {
-            Debug.LogWarning("SpawnManager not found! Character selections will not be applied.");
+            Debug.LogError($"[SimpleSceneTransition] Failed to load lobby scene: {status}");
+            isTransitioning.Value = false;
         }
     }
     
-    [ServerRpc(RequireOwnership = false)]
-    private void ApplyCharacterSelectionsToSpawnedPlayersServerRpc()
+    /// <summary>
+    /// Cache player data from current session before scene transition
+    /// </summary>
+    private void CachePlayerData()
     {
-        if (!IsServer) return;
+        playerDataCache.Clear();
         
-        // Get all spawned player objects and apply their character selections
         var playerSessionData = PlayerSessionData.Instance;
         if (playerSessionData == null)
         {
-            Debug.LogWarning("PlayerSessionData not found, cannot apply character selections");
+            Debug.LogWarning("[SimpleSceneTransition] PlayerSessionData not found, using basic caching");
+            CacheBasicPlayerData();
             return;
         }
         
-        var connectedSessions = playerSessionData.GetConnectedPlayerSessions();
-        Debug.Log($"Found {connectedSessions.Count} connected player sessions");
+        var sessions = playerSessionData.GetConnectedPlayerSessions();
+        Debug.Log($"[SimpleSceneTransition] Caching data for {sessions.Count} players");
         
-        foreach (var session in connectedSessions)
+        // CRITICAL FIX: Cache data for ALL connected clients, not just sessions
+        Debug.Log($"[SimpleSceneTransition] Caching data for all {NetworkManager.Singleton.ConnectedClients.Count} connected clients");
+        
+        foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
         {
-            if (session.selectedCharacterId != 0) // 0 is default/no selection
+            var clientId = clientPair.Key;
+            var client = clientPair.Value;
+            
+            // Try to find session data for this client
+            var matchingSession = sessions.FirstOrDefault(s => s.playerId.ToString() == client.ClientId.ToString());
+            
+            var playerData = new PlayerData
             {
-                // Find the corresponding NetworkObject for this player
-                if (NetworkManager.Singleton == null) continue;
+                clientId = clientId,
+                characterId = 0, // Default
+                playerName = $"Player_{clientId}" // Default
+            };
+            
+            // CRITICAL FIX: Only use session data if a valid session was found
+            if (!matchingSession.Equals(default) && matchingSession.selectedCharacterId > 0)
+            {
+                playerData.characterId = matchingSession.selectedCharacterId;
                 
-                foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+                // Only use session name if it's not empty
+                if (!string.IsNullOrEmpty(matchingSession.playerName.ToString()))
                 {
-                    if (client.PlayerObject != null)
-                    {
-                        var characterLoader = client.PlayerObject.GetComponent<UltraSimpleMeshSwapper>();
-                        if (characterLoader != null)
-                        {
-                            var characterData = CharacterRegistry.Instance?.GetCharacterByID(session.selectedCharacterId);
-                            if (characterData != null)
-                            {
-                                Debug.Log($"Applying character {characterData.characterName} to player {session.playerName} (ClientID: {client.ClientId})");
-                                
-                                // CRITICAL FIX: Use NetworkVariable system for proper character sync
-                                characterLoader.SetNetworkCharacterId(session.selectedCharacterId);
-                            }
-                            break; // Move to next session
-                        }
-                    }
+                    playerData.playerName = matchingSession.playerName.ToString();
                 }
+                
+                Debug.Log($"[SimpleSceneTransition] Found session for client {clientId}: Character={playerData.characterId}, Name='{playerData.playerName}'");
             }
+            else
+            {
+                Debug.Log($"[SimpleSceneTransition] No valid session found for client {clientId}, using defaults");
+            }
+            
+            playerDataCache[clientId] = playerData;
+            Debug.Log($"[SimpleSceneTransition] Cached player data - Client: {clientId}, Character: {playerData.characterId}, Name: '{playerData.playerName}'");
+        }
+        
+        Debug.Log($"[SimpleSceneTransition] Player data caching completed: {playerDataCache.Count} entries");
+    }
+    
+    /// <summary>
+    /// Basic player data caching when PlayerSessionData is not available
+    /// </summary>
+    private void CacheBasicPlayerData()
+    {
+        foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
+        {
+            var clientId = clientPair.Key;
+            var client = clientPair.Value;
+            
+            var playerData = new PlayerData
+            {
+                clientId = clientId,
+                characterId = 0, // Default character
+                playerName = $"Player_{clientId}"
+            };
+            
+            playerDataCache[clientId] = playerData;
+            Debug.Log($"[SimpleSceneTransition] Basic cache - Client: {clientId}");
         }
     }
     
-    // REMOVED: Old ClientRpc system replaced with NetworkVariable system in UltraSimpleMeshSwapper
-    
-    
-    public string GetCurrentSceneName()
+    /// <summary>
+    /// Load the game scene using NetworkSceneManager
+    /// </summary>
+    private void LoadGameScene()
     {
-        return SceneManager.GetActiveScene().name;
+        var status = NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+        
+        if (status == SceneEventProgressStatus.Started)
+        {
+            Debug.Log($"[SimpleSceneTransition] Loading game scene: {gameSceneName}");
+        }
+        else
+        {
+            Debug.LogError($"[SimpleSceneTransition] Failed to load game scene: {status}");
+            isTransitioning.Value = false;
+        }
     }
     
-    public bool IsInMainMenu()
+    /// <summary>
+    /// Called when scene loading is completed on all clients
+    /// This is the perfect time to spawn players with their data
+    /// </summary>
+    private void OnSceneLoadCompleted(string sceneName, LoadSceneMode loadSceneMode, System.Collections.Generic.List<ulong> clientsCompleted, System.Collections.Generic.List<ulong> clientsTimedOut)
     {
-        return GetCurrentSceneName() == mainMenuSceneName;
+        Debug.Log($"[SimpleSceneTransition] Scene load completed: {sceneName}");
+        Debug.Log($"[SimpleSceneTransition] Clients completed: {clientsCompleted.Count}, Timed out: {clientsTimedOut.Count}");
+        
+        if (!NetworkManager.Singleton.IsServer)
+            return;
+        
+        // Only handle game scene loading
+        if (sceneName == gameSceneName)
+        {
+            Debug.Log("[SimpleSceneTransition] Game scene loaded, spawning players...");
+            StartCoroutine(SpawnPlayersAfterSceneLoad());
+        }
+        else if (sceneName == lobbySceneName)
+        {
+            Debug.Log("[SimpleSceneTransition] Lobby scene loaded");
+            isTransitioning.Value = false;
+        }
     }
     
+    /// <summary>
+    /// Spawn players with their cached data after scene loads
+    /// </summary>
+    private System.Collections.IEnumerator SpawnPlayersAfterSceneLoad()
+    {
+        // Wait a frame to ensure scene is fully initialized
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForSeconds(0.1f);
+        
+        // Find the GameSpawnManager to handle player spawning
+        Debug.Log("[SimpleSceneTransition] Looking for GameSpawnManager...");
+        var spawnManager = FindFirstObjectByType<GameSpawnManager>();
+        if (spawnManager == null)
+        {
+            Debug.LogError("[SimpleSceneTransition] GameSpawnManager not found in game scene!");
+            
+            // Try alternative search methods
+            var allSpawnManagers = FindObjectsByType<GameSpawnManager>(FindObjectsSortMode.None);
+            Debug.Log($"[SimpleSceneTransition] Found {allSpawnManagers.Length} GameSpawnManager objects via FindObjectsByType");
+            
+            isTransitioning.Value = false;
+            yield break;
+        }
+        
+        Debug.Log($"[SimpleSceneTransition] Found GameSpawnManager: {spawnManager.name}");
+        Debug.Log($"[SimpleSceneTransition] Cached player data count: {playerDataCache.Count}");
+        
+        // Show all cached data
+        foreach (var kvp in playerDataCache)
+        {
+            var data = kvp.Value;
+            Debug.Log($"[SimpleSceneTransition] Cached data - Client: {data.clientId}, Character: {data.characterId}, Name: '{data.playerName}'");
+        }
+        
+        // Spawn players with their cached data
+        foreach (var playerData in playerDataCache.Values)
+        {
+            Debug.Log($"[SimpleSceneTransition] Calling SpawnPlayerWithData - Client: {playerData.clientId}, Character: {playerData.characterId}, Name: '{playerData.playerName}'");
+            spawnManager.SpawnPlayerWithData(playerData.clientId, playerData.characterId, playerData.playerName);
+        }
+        
+        // Transition complete
+        isTransitioning.Value = false;
+        Debug.Log("[SimpleSceneTransition] Game transition completed successfully!");
+    }
+    
+    /// <summary>
+    /// Get cached player data for a specific client
+    /// </summary>
+    public PlayerData? GetPlayerData(ulong clientId)
+    {
+        if (playerDataCache.TryGetValue(clientId, out var data))
+        {
+            return data;
+        }
+        return null;
+    }
+    
+    /// <summary>
+    /// Check if currently transitioning
+    /// </summary>
+    public bool IsTransitioning()
+    {
+        return isTransitioning.Value;
+    }
+    
+    /// <summary>
+    /// Get current scene type
+    /// </summary>
+    public bool IsInLobby()
+    {
+        return SceneManager.GetActiveScene().name == lobbySceneName;
+    }
     
     public bool IsInGame()
     {
-        return GetCurrentSceneName() == gameSceneName;
+        return SceneManager.GetActiveScene().name == gameSceneName;
     }
     
-    public void SetSceneNames(string mainMenu, string game)
+    /// <summary>
+    /// Debug method to manually trigger player spawning (for testing)
+    /// </summary>
+    [ContextMenu("Debug - Manual Spawn Players")]
+    public void DebugManualSpawnPlayers()
     {
-        mainMenuSceneName = mainMenu;
-        gameSceneName = game;
+        if (!NetworkManager.Singleton.IsServer)
+        {
+            Debug.LogWarning("[SimpleSceneTransition] Only server can manually spawn players");
+            return;
+        }
+        
+        Debug.Log("[SimpleSceneTransition] Manual spawn triggered");
+        StartCoroutine(SpawnPlayersAfterSceneLoad());
+    }
+    
+    /// <summary>
+    /// Debug method to check current state
+    /// </summary>
+    [ContextMenu("Debug - Check Transition State")]
+    public void DebugCheckTransitionState()
+    {
+        Debug.Log("=== SimpleSceneTransition State ===");
+        Debug.Log($"Current scene: {SceneManager.GetActiveScene().name}");
+        Debug.Log($"Is transitioning: {isTransitioning.Value}");
+        Debug.Log($"Is in lobby: {IsInLobby()}");
+        Debug.Log($"Is in game: {IsInGame()}");
+        Debug.Log($"Cached player data: {playerDataCache.Count}");
+        Debug.Log($"NetworkManager IsServer: {NetworkManager.Singleton?.IsServer}");
+        
+        foreach (var kvp in playerDataCache)
+        {
+            var data = kvp.Value;
+            Debug.Log($"  - Client {data.clientId}: Character {data.characterId}, Name '{data.playerName}'");
+        }
+        
+        Debug.Log("==================================");
     }
 }
