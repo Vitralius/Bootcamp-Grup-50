@@ -59,6 +59,9 @@ public class PlayerSessionData : NetworkBehaviour
     private NetworkList<PlayerSessionInfo> playerSessions;
     private Dictionary<string, string> playerIdToGuid = new Dictionary<string, string>();
     
+    // Track clientId to playerGuid mapping for character selection fix
+    private Dictionary<ulong, string> clientIdToGuid = new Dictionary<ulong, string>();
+    
     public event Action<PlayerSessionInfo> OnPlayerSessionUpdated;
     public event Action<string> OnPlayerJoined;
     public event Action<string> OnPlayerLeft;
@@ -142,7 +145,7 @@ public class PlayerSessionData : NetworkBehaviour
     }
     
     [ServerRpc(RequireOwnership = false)]
-    private void RegisterPlayerServerRpc(string playerId, string playerGuid)
+    private void RegisterPlayerServerRpc(string playerId, string playerGuid, ServerRpcParams rpcParams = default)
     {
         if (!IsServer) 
         {
@@ -166,6 +169,10 @@ public class PlayerSessionData : NetworkBehaviour
         
         playerIdToGuid[playerId] = playerGuid;
         
+        // Map clientId to playerGuid for character selection fix
+        ulong clientId = rpcParams.Receive.SenderClientId;
+        clientIdToGuid[clientId] = playerGuid;
+        
         // Check if player already exists (reconnection)
         int existingIndex = FindPlayerSessionIndex(playerGuid);
         if (existingIndex >= 0)
@@ -176,7 +183,7 @@ public class PlayerSessionData : NetworkBehaviour
             existingSession.playerId = new FixedString64Bytes(playerGuid); // Keep the GUID as ID
             playerSessions[existingIndex] = existingSession;
             
-            Debug.Log($"[SERVER] Player {playerGuid} reconnected");
+            Debug.Log($"[SERVER] Player {playerGuid} reconnected (ClientId: {clientId})");
         }
         else
         {
@@ -190,7 +197,7 @@ public class PlayerSessionData : NetworkBehaviour
             );
             
             playerSessions.Add(newSession);
-            Debug.Log($"[SERVER] Added new player session: {playerGuid}");
+            Debug.Log($"[SERVER] Added new player session: {playerGuid} (ClientId: {clientId})");
         }
         
         OnPlayerJoined?.Invoke(playerGuid);
@@ -335,6 +342,21 @@ public class PlayerSessionData : NetworkBehaviour
         string currentPlayerId = AuthenticationService.Instance.PlayerId;
         string playerGuid = GetPlayerGuid(currentPlayerId);
         return !string.IsNullOrEmpty(playerGuid) ? GetPlayerSession(playerGuid) : null;
+    }
+    
+    /// <summary>
+    /// Get player session by clientId - CRITICAL FIX for character selection bug
+    /// </summary>
+    public PlayerSessionInfo? GetPlayerSessionByClientId(ulong clientId)
+    {
+        if (clientIdToGuid.ContainsKey(clientId))
+        {
+            string playerGuid = clientIdToGuid[clientId];
+            return GetPlayerSession(playerGuid);
+        }
+        
+        Debug.LogWarning($"PlayerSessionData: No playerGuid found for clientId {clientId}");
+        return null;
     }
     
     public List<PlayerSessionInfo> GetAllPlayerSessions()

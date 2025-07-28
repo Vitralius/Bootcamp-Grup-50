@@ -13,6 +13,9 @@ public class SpawnManager : NetworkBehaviour
     
     public override void OnNetworkSpawn()
     {
+        // CRITICAL FIX: Ensure Unity's automatic player spawning is disabled
+        EnsureAutoSpawnIsDisabled();
+        
         if (IsServer && NetworkManager.Singleton != null)
         {
             // Spawn players for all currently connected clients
@@ -77,9 +80,22 @@ public class SpawnManager : NetworkBehaviour
         {
             GameObject playerObject = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
             NetworkObject netObj = playerObject.GetComponent<NetworkObject>();
-            netObj.SpawnAsPlayerObject(clientId);
+            
+            // CRITICAL FIX: Ensure proper ownership assignment
+            Debug.Log($"[SpawnManager] BEFORE SpawnAsPlayerObject - ClientId: {clientId}, Current OwnerClientId: {netObj.OwnerClientId}");
+            Debug.Log($"[SpawnManager] IsServer: {IsServer}, IsHost: {IsHost}, LocalClientId: {NetworkManager.Singleton.LocalClientId}");
+            
+            // Try manual ownership assignment first
+            netObj.ChangeOwnership(clientId);
+            Debug.Log($"[SpawnManager] AFTER ChangeOwnership - ClientId: {clientId}, OwnerClientId: {netObj.OwnerClientId}");
+            
+            netObj.SpawnAsPlayerObject(clientId, true); // destroyWithScene = true
             spawnedPlayers[clientId] = playerObject;
             
+            Debug.Log($"[SpawnManager] AFTER SpawnAsPlayerObject - ClientId: {clientId}, Final OwnerClientId: {netObj.OwnerClientId}");
+            
+            // Verify ownership on the next frame
+            StartCoroutine(VerifyOwnershipDelayed(clientId, netObj));
             Debug.Log($"Spawned new player for client {clientId} at position {spawnPosition}");
             
             // Apply character selection with proper network state validation
@@ -137,10 +153,10 @@ public class SpawnManager : NetworkBehaviour
             return;
         }
         
-        // Get the current player session for this client
-        var currentSession = playerSessionData.GetCurrentPlayerSession();
+        // CRITICAL FIX: Get the SPECIFIC client's session instead of local player's session
+        var clientSession = playerSessionData.GetPlayerSessionByClientId(clientId);
         
-        // CRITICAL FIX: Use PersistentCharacterCache to get character selection by clientId
+        // Use PersistentCharacterCache as primary source
         var persistentCache = PersistentCharacterCache.Instance;
         int selectedCharacterId = 0;
         
@@ -154,17 +170,17 @@ public class SpawnManager : NetworkBehaviour
             }
         }
         
-        // Fallback: Try to find in current session if cache is empty
-        if (selectedCharacterId == 0 && currentSession.HasValue)
+        // Fallback: Try to find in CLIENT-SPECIFIC session (NOT local session!)
+        if (selectedCharacterId == 0 && clientSession.HasValue)
         {
-            selectedCharacterId = currentSession.Value.selectedCharacterId;
-            Debug.Log($"SpawnManager: Using current session character for client {clientId}: {selectedCharacterId}");
+            selectedCharacterId = clientSession.Value.selectedCharacterId;
+            Debug.Log($"SpawnManager: Using client {clientId} session character: {selectedCharacterId}");
         }
         
         // Second fallback: Try GUID-based lookup if still empty
-        if (selectedCharacterId == 0 && currentSession.HasValue && persistentCache != null)
+        if (selectedCharacterId == 0 && clientSession.HasValue && persistentCache != null)
         {
-            int guidCachedId = persistentCache.GetCachedCharacterSelectionByGuid(currentSession.Value.playerId.ToString());
+            int guidCachedId = persistentCache.GetCachedCharacterSelectionByGuid(clientSession.Value.playerId.ToString());
             if (guidCachedId > 0)
             {
                 selectedCharacterId = guidCachedId;
@@ -184,9 +200,9 @@ public class SpawnManager : NetworkBehaviour
                 if (persistentCache != null)
                 {
                     persistentCache.CacheCharacterSelection(clientId, selectedCharacterId);
-                    if (currentSession.HasValue)
+                    if (clientSession.HasValue)
                     {
-                        persistentCache.CacheCharacterSelectionByGuid(currentSession.Value.playerId.ToString(), selectedCharacterId);
+                        persistentCache.CacheCharacterSelectionByGuid(clientSession.Value.playerId.ToString(), selectedCharacterId);
                     }
                 }
                 
@@ -287,6 +303,60 @@ public class SpawnManager : NetworkBehaviour
         {
             NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        }
+    }
+    
+    /// <summary>
+    /// Ensure Unity's automatic player spawning is disabled to prevent ownership conflicts
+    /// </summary>
+    private void EnsureAutoSpawnIsDisabled()
+    {
+        if (NetworkManager.Singleton != null)
+        {
+            var networkConfig = NetworkManager.Singleton.NetworkConfig;
+            
+            // Force disable automatic player spawning
+            if (networkConfig.PlayerPrefab != null || networkConfig.AutoSpawnPlayerPrefabClientSide)
+            {
+                Debug.LogWarning("[SpawnManager] Disabling Unity's automatic player spawning to prevent conflicts");
+                networkConfig.PlayerPrefab = null;
+                networkConfig.AutoSpawnPlayerPrefabClientSide = false;
+                Debug.Log("[SpawnManager] ✅ Automatic player spawning disabled - SpawnManager has full control");
+            }
+            else
+            {
+                Debug.Log("[SpawnManager] ✅ Automatic player spawning already disabled");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Verify ownership is correctly assigned after spawning
+    /// </summary>
+    private System.Collections.IEnumerator VerifyOwnershipDelayed(ulong expectedClientId, NetworkObject netObj)
+    {
+        yield return new WaitForSeconds(0.5f); // Wait for network sync
+        
+        if (netObj != null)
+        {
+            Debug.Log($"[SpawnManager] OWNERSHIP VERIFICATION - Expected: {expectedClientId}, Actual: {netObj.OwnerClientId}");
+            
+            if (netObj.OwnerClientId != expectedClientId)
+            {
+                Debug.LogError($"[SpawnManager] ❌ OWNERSHIP MISMATCH! Client {expectedClientId} should own their player but it's owned by {netObj.OwnerClientId}");
+                
+                // Try to fix ownership
+                if (IsServer)
+                {
+                    Debug.Log($"[SpawnManager] Attempting to fix ownership...");
+                    netObj.ChangeOwnership(expectedClientId);
+                    Debug.Log($"[SpawnManager] After fix attempt - OwnerClientId: {netObj.OwnerClientId}");
+                }
+            }
+            else
+            {
+                Debug.Log($"[SpawnManager] ✅ Ownership is CORRECT for client {expectedClientId}");
+            }
         }
     }
 }

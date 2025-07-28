@@ -9,7 +9,8 @@
       "WebFetch(domain:docs.unity3d.com)",
       "WebFetch(domain:discussions.unity.com)",
       "Bash(rm:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }
