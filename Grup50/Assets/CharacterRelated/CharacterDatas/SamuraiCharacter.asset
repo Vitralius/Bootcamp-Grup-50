@@ -29,14 +29,14 @@ MonoBehaviour:
   rotationSmoothTime: 0.12
   speedChangeRate: 10
   holdToCrouch: 1
-  crouchSpeedMultiplier: 0.5
-  slideSpeedThreshold: 3
-  maxSlideSpeed: 8
-  slideDeceleration: 2
-  minSlideDuration: 0.3
+  crouchSpeedMultiplier: 0.75
+  slideSpeedThreshold: 2.5
+  maxSlideSpeed: 10
+  slideDeceleration: 7
+  minSlideDuration: 0.2
   slideJumpMomentumMultiplier: 1.2
-  slideSteeringControl: 0.3
-  slideEntryBoost: 1.3
+  slideSteeringControl: 1
+  slideEntryBoost: 1.4
   jumpHeight: 1.2
   enableDoubleJump: 1
   maxJumps: 2
@@ -44,10 +44,10 @@ MonoBehaviour:
   jumpTimeout: 0.5
   fallTimeout: 0.15
   crouchCameraOffset: 0.5
-  sprintCameraOffset: 0.3
-  cameraLerpSpeed: 5
-  sprintFOVIncrease: 10
-  enableSprintScreenShake: 1
+  sprintCameraOffset: 0.2
+  cameraLerpSpeed: 1
+  sprintFOVIncrease: 5
+  enableSprintScreenShake: 0
   sprintShakeIntensity: 0.3
   groundedOffset: 0
   groundedRadius: 0.1
@@ -56,5 +56,6 @@ MonoBehaviour:
   landingAudioClip: {fileID: 8300000, guid: ff697d3070687ce4583faa0561a145a2, type: 3}
   footstepAudioClips: []
   footstepAudioVolume: 0.5
+  startingWeapon: {fileID: 0}
   specialAbilities: []
   characterID: 2

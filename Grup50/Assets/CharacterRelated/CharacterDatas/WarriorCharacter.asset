@@ -29,7 +29,7 @@ MonoBehaviour:
   rotationSmoothTime: 0.12
   speedChangeRate: 10
   holdToCrouch: 1
-  crouchSpeedMultiplier: 0.5
+  crouchSpeedMultiplier: 0.75
   slideSpeedThreshold: 2.5
   maxSlideSpeed: 10
   slideDeceleration: 7
@@ -56,5 +56,6 @@ MonoBehaviour:
   landingAudioClip: {fileID: 8300000, guid: ff697d3070687ce4583faa0561a145a2, type: 3}
   footstepAudioClips: []
   footstepAudioVolume: 0.5
+  startingWeapon: {fileID: 11400000, guid: fa2e1297bdcf571448572596e5b402df, type: 2}
   specialAbilities: []
   characterID: 0

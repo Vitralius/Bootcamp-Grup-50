@@ -157,6 +157,10 @@ public class CharacterData : ScriptableObject
     [Range(0, 1)] 
     public float footstepAudioVolume = 0.5f;
     
+    [Header("Combat")]
+    [Tooltip("Starting weapon this character spawns with")]
+    public WeaponData startingWeapon;
+    
     [Header("Special Abilities")]
     [Tooltip("Custom abilities this character can use")]
     public string[] specialAbilities;

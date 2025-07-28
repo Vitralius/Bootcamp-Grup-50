@@ -237,6 +237,7 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
         {
             success &= ApplyAnimatorController(characterData.animatorController);
             success &= ApplyCharacterStats(characterData);
+            success &= ApplyStartingWeapon(characterData);
         }
         
         if (success)
@@ -738,5 +739,31 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
                  $"- Target Renderer: {(targetRenderer?.name ?? "None")}\n" +
                  $"- Current Mesh: {(targetRenderer?.sharedMesh?.name ?? "None")}\n" +
                  $"- Animator: {(characterAnimator?.name ?? "None")}");
+    }
+    
+    /// <summary>
+    /// Apply starting weapon from character data
+    /// </summary>
+    private bool ApplyStartingWeapon(CharacterData characterData)
+    {
+        if (characterData == null || characterData.startingWeapon == null)
+        {
+            Debug.Log($"CleanCharacterLoader: No starting weapon for character '{characterData?.characterName ?? "null"}'");
+            return true; // Not an error - character might not have starting weapon
+        }
+        
+        // Find or create AutoWeapon component
+        AutoWeapon autoWeapon = GetComponent<AutoWeapon>();
+        if (autoWeapon == null)
+        {
+            Debug.Log($"CleanCharacterLoader: Adding AutoWeapon component for '{characterData.startingWeapon.WeaponName}'");
+            autoWeapon = gameObject.AddComponent<AutoWeapon>();
+        }
+        
+        // Set the weapon data
+        autoWeapon.SetWeaponData(characterData.startingWeapon);
+        
+        Debug.Log($"CleanCharacterLoader: ✅ Applied starting weapon '{characterData.startingWeapon.WeaponName}' to '{characterData.characterName}'");
+        return true;
     }
 }

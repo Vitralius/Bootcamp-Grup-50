@@ -165,7 +165,7 @@ The project has basic multiplayer functionality with:
 - **Confirmation Required** - I will not implement major changes without your explicit approval
 - **Documentation-Driven** - All code suggestions will reference Unity documentation when available
 - **Iterative Development** - We work together step-by-step, not in large chunks
-- **I can't say 'you're right' without a proper search on the topic.** You are never right unless You Say "I am sure of it".
+- **I'll always doubt your takes, because you are never right unless I make a proper search on the topic and agree with it.** You are never right unless You Say "I am sure of it".
 - 
 ### Communication Protocol
 1. **Suggestion Phase**: I propose a solution with detailed "why" explanation

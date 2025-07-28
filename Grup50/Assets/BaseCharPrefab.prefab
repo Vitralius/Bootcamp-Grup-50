@@ -132,6 +132,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8121316473130955616}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 9031342714802496362}
   m_SourcePrefab: {fileID: 100100000, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
 --- !u!95 &223782031619256568 stripped
 Animator:
@@ -340,7 +343,7 @@ MonoBehaviour:
   SprintCameraOffset: 0.2
   CameraLerpSpeed: 1
   SprintFOVIncrease: 5
-  EnableSprintScreenShake: 1
+  EnableSprintScreenShake: 0
   SprintShakeIntensity: 0.04
   MouseSensitivity: 1
   ControllerSensitivity: 2
@@ -365,6 +368,11 @@ MonoBehaviour:
   BottomClamp: -30
   CameraAngleOverride: 0
   LockCameraPosition: 0
+  AimingFOV: 35
+  AimingCameraOffset: {x: 0.3, y: -4, z: 15}
+  AimingTransitionSpeed: 6
+  SpeedSmoothTime: 0.1
+  DirectionSmoothTime: 0.15
 --- !u!114 &8346000919502044265
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -382,6 +390,7 @@ MonoBehaviour:
   jump: 0
   sprint: 0
   crouch: 0
+  aim: 0
   menu: 0
   analogMovement: 0
   cursorLocked: 1
@@ -524,6 +533,33 @@ MonoBehaviour:
   originalAnimatorController: {fileID: 9100000, guid: c6d24dc7d49c83e4d865d997acdbb000, type: 2}
   boMesh: {fileID: 4090233603212938926, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}
   wizardMesh: {fileID: -2054420175920092483, guid: bf55b5e8d6a03ee4391e0fb9b7c8efda, type: 3}
+--- !u!114 &9031342714802496362
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6823222723104895032}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c802e2f1c51e99429c7ea64c37b232b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  currentStats:
+    playerName: 
+    clientId: 0
+    ownerClientId: 0
+    isOwner: 0
+    isServer: 0
+    isHost: 0
+    networkSpawned: 0
+    inputEnabled: 0
+    cameraActive: 0
+    cameraName: 
+    canMove: 0
+  enableContinuousLogging: 1
+  loggingInterval: 2
 --- !u!137 &9021897819587611128 stripped
 SkinnedMeshRenderer:
   m_CorrespondingSourceObject: {fileID: 3406310661786125457, guid: 0a9edd88b40de354fbb7068891985ce2, type: 3}

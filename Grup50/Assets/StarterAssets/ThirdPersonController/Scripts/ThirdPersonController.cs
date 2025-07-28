@@ -164,6 +164,25 @@ namespace StarterAssets
         [Tooltip("For locking the camera position on all axis")]
         public bool LockCameraPosition = false;
 
+        [Header("Aiming Camera Settings")]
+        [Tooltip("Field of view when aiming (lower = more zoomed in)")]
+        public float AimingFOV = 40f;
+        
+        [Tooltip("Camera offset to right shoulder when aiming")]
+        public Vector3 AimingCameraOffset = new Vector3(0.5f, 0.2f, 0f);
+        
+        [Tooltip("Speed of camera transition when entering/exiting aim")]
+        public float AimingTransitionSpeed = 8f;
+
+        [Header("Animation Smoothing")]
+        [Tooltip("Animation speed smoothing time (lower = more responsive, higher = smoother)")]
+        [Range(0.05f, 0.5f)]
+        public float SpeedSmoothTime = 0.1f;
+        
+        [Tooltip("Direction smoothing time for 8-way movement (lower = snappier, higher = smoother)")]
+        [Range(0.05f, 0.3f)]
+        public float DirectionSmoothTime = 0.15f;
+
         // cinemachine
         private float _cinemachineTargetYaw;
         private float _cinemachineTargetPitch;
@@ -195,6 +214,8 @@ namespace StarterAssets
         private int _animIDSliding;
         private int _animIDDirectionX;
         private int _animIDDirectionY;
+        private int _animIDAiming;
+        private int _animIDSprinting;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
@@ -232,6 +253,12 @@ namespace StarterAssets
         private float _originalFOV;
         private float _targetFOV;
         private CinemachineCamera _virtualCamera;
+        
+        // aiming camera variables
+        private Vector3 _originalCameraOffset;
+        private Vector3 _targetCameraOffset;
+        private bool _isAiming;
+        private bool _wasAimingLastFrame;
         
         // Public getter for camera assignment checking
         public CinemachineCamera VirtualCamera => _virtualCamera;
@@ -300,121 +327,21 @@ namespace StarterAssets
             {
                 Debug.Log($"[ThirdPersonController] Setting up camera for owner: {gameObject.name}, ClientID: {OwnerClientId}");
                 
-                // CRITICAL FIX: Better camera finding for clients
-                GameObject mainCameraObj = GameObject.FindGameObjectWithTag("MainCamera");
-                if (mainCameraObj == null)
-                {
-                    // Fallback: Find any camera in the scene
-                    Camera[] fallbackCameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
-                    if (fallbackCameras.Length > 0)
-                    {
-                        _mainCamera = fallbackCameras[0];
-                        Debug.Log($"[ThirdPersonController] No MainCamera tag found, using fallback camera: {_mainCamera.name}");
-                    }
-                }
-                else
-                {
-                    _mainCamera = mainCameraObj.GetComponentInChildren<Camera>();
-                    if (_mainCamera == null)
-                        _mainCamera = mainCameraObj.GetComponent<Camera>();
-                }
-                
-                if (_mainCamera == null)
-                {
-                    Debug.LogError($"[ThirdPersonController] No camera found at all for {gameObject.name}!");
-                }
-                else
-                {
-                    Debug.Log($"[ThirdPersonController] Found camera: {_mainCamera.name} for ClientID: {OwnerClientId}");
-                }
-                
-                // IMPROVED CAMERA FIX: Simplified camera assignment using client ID
-                AssignCameraToPlayer();
-                
-                if (_virtualCamera != null)
-                {
-                    // CRITICAL FIX: Find CinemachineCameraTarget if it's null
-                    if (CinemachineCameraTarget == null)
-                    {
-                        Debug.LogError($"[ThirdPersonController] CinemachineCameraTarget is NULL! Searching for PlayerCameraRoot...");
-                        GameObject playerCameraRoot = GameObject.FindGameObjectWithTag("CinemachineTarget");
-                        if (playerCameraRoot == null)
-                        {
-                            // Try to find by name
-                            playerCameraRoot = GameObject.Find("PlayerCameraRoot");
-                        }
-                        
-                        if (playerCameraRoot != null)
-                        {
-                            CinemachineCameraTarget = playerCameraRoot;
-                            Debug.Log($"[ThirdPersonController] Found and assigned CinemachineCameraTarget: {CinemachineCameraTarget.name}");
-                        }
-                        else
-                        {
-                            Debug.LogError($"[ThirdPersonController] Could not find PlayerCameraRoot!");
-                        }
-                    }
-                    
-                    Debug.Log($"[ThirdPersonController] CinemachineCameraTarget: {(CinemachineCameraTarget != null ? CinemachineCameraTarget.name : "NULL")}");
-                    Debug.Log($"[ThirdPersonController] CinemachineCameraTarget world position: {(CinemachineCameraTarget != null ? CinemachineCameraTarget.transform.position.ToString() : "NULL")}");
-                    Debug.Log($"[ThirdPersonController] CinemachineCameraTarget local position: {(CinemachineCameraTarget != null ? CinemachineCameraTarget.transform.localPosition.ToString() : "NULL")}");
-                    
-                    // CRITICAL FIX: Ensure camera target is in correct position
-                    if (CinemachineCameraTarget != null)
-                    {
-                        CinemachineCameraTarget.transform.localPosition = new Vector3(0, 1.375f, 0);
-                        Debug.Log($"[ThirdPersonController] Fixed camera target local position to: {CinemachineCameraTarget.transform.localPosition}");
-                        
-                        _virtualCamera.Follow = CinemachineCameraTarget.transform;
-                        _virtualCamera.LookAt = CinemachineCameraTarget.transform;
-                    }
-                    else
-                    {
-                        Debug.LogError($"[ThirdPersonController] Cannot set up camera - CinemachineCameraTarget is still NULL!");
-                    }
-                    
-                    // Store original FOV
-                    _originalFOV = _virtualCamera.Lens.FieldOfView;
-                    _targetFOV = _originalFOV;
-                    
-                    Debug.Log($"[ThirdPersonController] Set up Cinemachine camera: {_virtualCamera.name}, FOV: {_originalFOV}");
-                    Debug.Log($"[ThirdPersonController] Camera follow target set to: {_virtualCamera.Follow.name}");
-                }
-                else
-                {
-                    Debug.LogError($"[ThirdPersonController] CinemachineCamera not found for {gameObject.name}!");
-                }
-                
-                // Get screen shake manager
-                _screenShakeManager = GetComponent<ScreenShakeManager>();
-                if (_screenShakeManager == null)
-                {
-                    _screenShakeManager = gameObject.AddComponent<ScreenShakeManager>();
-                }
-                
-                // Lock and hide cursor for local player
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
-                
-                // Enable input for owner player
-                if (_input != null)
-                {
-                    _input.enabled = true;
-                    Debug.Log($"[ThirdPersonController] Enabled input for {gameObject.name}");
-                }
-                if (_playerInput != null)
-                {
-                    _playerInput.enabled = true;
-                    Debug.Log($"[ThirdPersonController] Enabled PlayerInput for {gameObject.name}");
-                }
+                // CRITICAL FIX: Setup camera and input with proper delay to ensure network synchronization
+                StartCoroutine(SetupOwnerPlayerDelayed());
             }
             else
             {
+                Debug.Log($"[ThirdPersonController] Non-owner player setup: {gameObject.name}, ClientID: {OwnerClientId}");
+                
                 // Disable input components for non-owner players
                 if (_input != null)
                     _input.enabled = false;
                 if (_playerInput != null)
                     _playerInput.enabled = false;
+                    
+                // CRITICAL FIX: Disable camera components for non-owners to prevent conflicts
+                DisableNonOwnerCameraComponents();
             }
             
         }
@@ -519,6 +446,8 @@ namespace StarterAssets
             _animIDSliding = Animator.StringToHash("Sliding");
             _animIDDirectionX = Animator.StringToHash("DirectionX");
             _animIDDirectionY = Animator.StringToHash("DirectionY");
+            _animIDAiming = Animator.StringToHash("Aiming");
+            _animIDSprinting = Animator.StringToHash("Sprinting");
         }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -962,6 +891,9 @@ namespace StarterAssets
             // normalise input direction
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
 
+            // Declare movement direction for later use
+            Vector3 moveDirection = Vector3.zero;
+
             // Calculate DirectionX and DirectionY relative to CHARACTER'S mesh facing direction
             // This provides 8-way movement values for animation blending and future aiming mechanics
             _directionX = 0f;
@@ -970,6 +902,15 @@ namespace StarterAssets
             if (_input.move != Vector2.zero)
             {
                 // Get camera forward and right directions (for movement calculation)
+                if (_mainCamera == null)
+                    _mainCamera = Camera.main;
+                    
+                if (_mainCamera == null)
+                {
+                    Debug.LogWarning("[ThirdPersonController] Main camera is null, cannot calculate movement");
+                    return;
+                }
+                
                 Vector3 cameraForward = _mainCamera.transform.forward;
                 Vector3 cameraRight = _mainCamera.transform.right;
                 cameraForward.y = 0f;
@@ -978,7 +919,7 @@ namespace StarterAssets
                 cameraRight.Normalize();
                 
                 // Calculate movement direction in world space relative to camera (for actual movement)
-                Vector3 moveDirection = cameraRight * _input.move.x + cameraForward * _input.move.y;
+                moveDirection = cameraRight * _input.move.x + cameraForward * _input.move.y;
                 moveDirection.Normalize();
                 
                 // CRITICAL: Get character's CURRENT facing direction (before rotation update)
@@ -1001,10 +942,20 @@ namespace StarterAssets
                 _directionY = Mathf.Clamp(_directionY, -1f, 1f);
             }
 
-            // note: Vector2's != operator uses approximation so is not floating point error prone, and is cheaper than magnitude
-            // if there is a move input rotate player when the player is moving
-            if (_input.move != Vector2.zero)
+            // Handle character rotation - aiming mode vs movement-based rotation
+            if (_input.aim)
             {
+                // AIMING MODE: Character faces camera forward direction
+                _targetRotation = _mainCamera.transform.eulerAngles.y;
+                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
+                    RotationSmoothTime * 0.5f); // Faster rotation when aiming
+
+                // rotate to face camera direction
+                transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
+            }
+            else if (_input.move != Vector2.zero)
+            {
+                // NORMAL MODE: Character faces movement direction
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
                                   _mainCamera.transform.eulerAngles.y;
                 float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
@@ -1014,11 +965,17 @@ namespace StarterAssets
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
             }
 
+            // Handle aiming camera adjustments
+            HandleAimingCamera();
 
             Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
 
-            // move the player
-            _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
+            // Use camera-relative movement direction (calculated earlier) for actual movement
+            // This allows strafing and all-directional movement while aiming
+            Vector3 finalMovementDirection = _input.move != Vector2.zero ? moveDirection : Vector3.zero;
+
+            // move the player using camera-relative movement direction
+            _controller.Move(finalMovementDirection * (_speed * Time.deltaTime) +
                              new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
             
             // Apply slide jump momentum if active
@@ -1027,22 +984,31 @@ namespace StarterAssets
             // update animator if using character
             if (_hasAnimator)
             {
-                // CRITICAL FIX: Calculate normalized speed (0-1) for animation blend trees
+                // TEMPORARY: Send normalized speed to test if this fixes fast animations
                 float maxPossibleSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
                 if (_isCrouching)
                     maxPossibleSpeed *= CrouchSpeedMultiplier;
-
                 float normalizedSpeed = maxPossibleSpeed > 0 ? Mathf.Clamp01(_speed / maxPossibleSpeed) : 0f;
-
-                _animator.SetFloat(_animIDSpeed, _speed);
+                
+                // Use configurable dampening for smooth transitions
+                _animator.SetFloat(_animIDSpeed, normalizedSpeed, SpeedSmoothTime, Time.deltaTime);
+                
+                // DEBUG: Print both values
+                if (_input.move != Vector2.zero)
+                    Debug.Log($"[ANIM DEBUG] Raw speed: {_speed:F2}, Normalized: {normalizedSpeed:F2}");
                 //_animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
-                _animator.SetFloat(_animIDDirectionX, _directionX);
-                _animator.SetFloat(_animIDDirectionY, _directionY);
+                
+                // Dampen directional parameters for smoother 8-way blending
+                _animator.SetFloat(_animIDDirectionX, _directionX, DirectionSmoothTime, Time.deltaTime);
+                _animator.SetFloat(_animIDDirectionY, _directionY, DirectionSmoothTime, Time.deltaTime);
+                _animator.SetBool(_animIDAiming, _input.aim);
+                _animator.SetBool(_animIDSprinting, _input.sprint && !_isCrouching && !_isSliding);
                 
                 // Debug animation parameters (only when moving to avoid spam)
                 if (_input.move != Vector2.zero && ShowDebugInfo)
                 {
-                    Debug.Log($"[ThirdPersonController] 8-Way Animation - NormalizedSpeed: {normalizedSpeed:F2} (was {_animationBlend:F2}), ActualSpeed: {_speed:F2}, MaxSpeed: {maxPossibleSpeed:F2}");
+                    bool sprinting = _input.sprint && !_isCrouching && !_isSliding;
+                    Debug.Log($"[ThirdPersonController] 8-Way Animation - Speed: {_speed:F2}, DirectionX: {_directionX:F2}, DirectionY: {_directionY:F2}, Sprinting: {sprinting}");
                 }
             }
         }
@@ -1087,12 +1053,8 @@ namespace StarterAssets
             // Update animator with slide speed
             if (_hasAnimator)
             {
+                // Send raw slide speed to animator for blend tree logic
                 _animator.SetFloat(_animIDSpeed, _slideSpeed);
-                // Calculate normalized slide speed (0-1) for animation
-                // float normalizedSlideSpeed = MaxSlideSpeed > 0 ? Mathf.Clamp01(_slideSpeed / MaxSlideSpeed) : 0f;
-                //
-                // _animator.SetFloat(_animIDSpeed, normalizedSlideSpeed);
-                //_animator.SetFloat(_animIDMotionSpeed, 1f);
             }
         }
         
@@ -1217,6 +1179,12 @@ namespace StarterAssets
         
         private void PerformJump()
         {
+            // Cancel crouching when jumping (standard game behavior)
+            if (_isCrouching)
+            {
+                StopCrouching();
+            }
+            
             // Increment jump count
             _jumpCount++;
             
@@ -1361,6 +1329,9 @@ namespace StarterAssets
              if (_input.sprint && !_isCrouching && !_isSliding)
                 states.Add("SPRINTING");
                 
+            if (_input.aim)
+                states.Add("AIMING");
+                
             if (_jumpCount > 0)
                 states.Add($"JUMP #{_jumpCount}");
                 
@@ -1439,6 +1410,216 @@ namespace StarterAssets
         }
         
         /// <summary>
+        /// CRITICAL FIX: Delayed setup for owner players to ensure proper network synchronization
+        /// </summary>
+        private System.Collections.IEnumerator SetupOwnerPlayerDelayed()
+        {
+            // Wait for network to be fully ready and scene objects to be synchronized
+            int maxAttempts = 50; // 5 seconds max wait
+            int attempts = 0;
+            
+            while (attempts < maxAttempts)
+            {
+                if (NetworkManager.Singleton != null && IsSpawned && 
+                    NetworkManager.Singleton.IsConnectedClient)
+                {
+                    break; // Network is ready
+                }
+                
+                attempts++;
+                yield return new WaitForSeconds(0.1f);
+            }
+            
+            if (attempts >= maxAttempts)
+            {
+                Debug.LogWarning($"[ThirdPersonController] Network sync timeout for {gameObject.name}");
+            }
+            
+            // Now setup camera and input safely
+            SetupOwnerCamera();
+            SetupOwnerInput();
+        }
+        
+        /// <summary>
+        /// CRITICAL FIX: Setup camera for owner with proper error handling
+        /// </summary>
+        private void SetupOwnerCamera()
+        {
+            // Find main camera
+            GameObject mainCameraObj = GameObject.FindGameObjectWithTag("MainCamera");
+            if (mainCameraObj == null)
+            {
+                // Fallback: Find any camera in the scene
+                Camera[] fallbackCameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
+                if (fallbackCameras.Length > 0)
+                {
+                    _mainCamera = fallbackCameras[0];
+                    Debug.Log($"[ThirdPersonController] No MainCamera tag found, using fallback camera: {_mainCamera.name}");
+                }
+            }
+            else
+            {
+                _mainCamera = mainCameraObj.GetComponentInChildren<Camera>();
+                if (_mainCamera == null)
+                    _mainCamera = mainCameraObj.GetComponent<Camera>();
+            }
+            
+            if (_mainCamera == null)
+            {
+                Debug.LogError($"[ThirdPersonController] No camera found at all for {gameObject.name}!");
+                return;
+            }
+            
+            Debug.Log($"[ThirdPersonController] Found camera: {_mainCamera.name} for ClientID: {OwnerClientId}");
+            
+            // Assign Cinemachine camera
+            AssignCameraToPlayer();
+            
+            if (_virtualCamera != null)
+            {
+                // Ensure camera target exists and is properly positioned
+                SetupCameraTarget();
+                
+                if (CinemachineCameraTarget != null)
+                {
+                    _virtualCamera.Follow = CinemachineCameraTarget.transform;
+                    _virtualCamera.LookAt = CinemachineCameraTarget.transform;
+                    
+                    // Store original FOV
+                    _originalFOV = _virtualCamera.Lens.FieldOfView;
+                    _targetFOV = _originalFOV;
+                    
+                    // Store original camera offset for aiming
+                    var thirdPersonFollow = _virtualCamera.GetComponent<Unity.Cinemachine.CinemachineThirdPersonFollow>();
+                    if (thirdPersonFollow != null)
+                    {
+                        _originalCameraOffset = new Vector3(thirdPersonFollow.CameraSide, thirdPersonFollow.CameraDistance, 0f);
+                    }
+                    else
+                    {
+                        _originalCameraOffset = Vector3.zero;
+                    }
+                    _targetCameraOffset = _originalCameraOffset;
+                    
+                    Debug.Log($"[ThirdPersonController] ✅ Camera setup complete: {_virtualCamera.name}, FOV: {_originalFOV}");
+                }
+                else
+                {
+                    Debug.LogError($"[ThirdPersonController] ❌ Camera target setup failed!");
+                }
+            }
+            else
+            {
+                Debug.LogError($"[ThirdPersonController] ❌ Cinemachine camera assignment failed!");
+            }
+            
+            // Setup screen shake manager
+            _screenShakeManager = GetComponent<ScreenShakeManager>();
+            if (_screenShakeManager == null)
+            {
+                _screenShakeManager = gameObject.AddComponent<ScreenShakeManager>();
+            }
+        }
+        
+        /// <summary>
+        /// CRITICAL FIX: Setup camera target with proper fallbacks
+        /// </summary>
+        private void SetupCameraTarget()
+        {
+            if (CinemachineCameraTarget == null)
+            {
+                Debug.LogWarning($"[ThirdPersonController] CinemachineCameraTarget is NULL! Searching for PlayerCameraRoot...");
+                
+                // Try to find by tag first
+                GameObject playerCameraRoot = GameObject.FindGameObjectWithTag("CinemachineTarget");
+                if (playerCameraRoot == null)
+                {
+                    // Try to find by name
+                    playerCameraRoot = GameObject.Find("PlayerCameraRoot");
+                }
+                
+                // Try to find in children
+                if (playerCameraRoot == null)
+                {
+                    Transform cameraTargetTransform = transform.Find("PlayerCameraRoot");
+                    if (cameraTargetTransform != null)
+                        playerCameraRoot = cameraTargetTransform.gameObject;
+                }
+                
+                if (playerCameraRoot != null)
+                {
+                    CinemachineCameraTarget = playerCameraRoot;
+                    Debug.Log($"[ThirdPersonController] Found CinemachineCameraTarget: {CinemachineCameraTarget.name}");
+                }
+                else
+                {
+                    Debug.LogError($"[ThirdPersonController] Could not find PlayerCameraRoot! Camera will not work properly.");
+                    return;
+                }
+            }
+            
+            // Ensure camera target is in correct position
+            if (CinemachineCameraTarget != null)
+            {
+                CinemachineCameraTarget.transform.localPosition = new Vector3(0, 1.375f, 0);
+                Debug.Log($"[ThirdPersonController] Camera target positioned at: {CinemachineCameraTarget.transform.localPosition}");
+            }
+        }
+        
+        /// <summary>
+        /// CRITICAL FIX: Setup input for owner with proper validation
+        /// </summary>
+        private void SetupOwnerInput()
+        {
+            // Lock and hide cursor for local player
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+            
+            // Enable input for owner player
+            if (_input != null)
+            {
+                _input.enabled = true;
+                Debug.Log($"[ThirdPersonController] ✅ Enabled StarterAssetsInputs for {gameObject.name}");
+            }
+            else
+            {
+                Debug.LogError($"[ThirdPersonController] ❌ StarterAssetsInputs is null for {gameObject.name}!");
+            }
+            
+            if (_playerInput != null)
+            {
+                _playerInput.enabled = true;
+                Debug.Log($"[ThirdPersonController] ✅ Enabled PlayerInput for {gameObject.name}");
+            }
+            else
+            {
+                Debug.LogError($"[ThirdPersonController] ❌ PlayerInput is null for {gameObject.name}!");
+            }
+        }
+        
+        /// <summary>
+        /// CRITICAL FIX: Disable camera components for non-owners to prevent conflicts
+        /// </summary>
+        private void DisableNonOwnerCameraComponents()
+        {
+            // Find all Cinemachine cameras and disable them for non-owners
+            CinemachineCamera[] cameras = GetComponentsInChildren<CinemachineCamera>();
+            foreach (var camera in cameras)
+            {
+                camera.gameObject.SetActive(false);
+                Debug.Log($"[ThirdPersonController] Disabled camera {camera.name} for non-owner {gameObject.name}");
+            }
+            
+            // Also disable any Camera components
+            Camera[] cameraComponents = GetComponentsInChildren<Camera>();
+            foreach (var camera in cameraComponents)
+            {
+                camera.enabled = false;
+                Debug.Log($"[ThirdPersonController] Disabled camera component {camera.name} for non-owner {gameObject.name}");
+            }
+        }
+        
+        /// <summary>
         /// IMPROVED CAMERA FIX: Simplified camera assignment to prevent race conditions
         /// </summary>
         private void AssignCameraToPlayer()
@@ -1462,6 +1643,15 @@ namespace StarterAssets
                 _virtualCamera = allCameras[cameraIndex];
                 
                 Debug.Log($"[ThirdPersonController] Assigned camera {_virtualCamera.name} (index {cameraIndex}) to ClientID: {OwnerClientId}");
+                
+                // Deactivate all other cameras for this client
+                for (int i = 0; i < allCameras.Length; i++)
+                {
+                    if (i != cameraIndex)
+                    {
+                        allCameras[i].gameObject.SetActive(false);
+                    }
+                }
             }
             else
             {
@@ -1474,7 +1664,49 @@ namespace StarterAssets
             if (_virtualCamera != null)
             {
                 _virtualCamera.gameObject.SetActive(true);
+                _virtualCamera.Priority.Value = 10; // Set high priority
+                Debug.Log($"[ThirdPersonController] ✅ Activated camera {_virtualCamera.name} for ClientID: {OwnerClientId}");
             }
+        }
+        
+        /// <summary>
+        /// Handle camera adjustments for aiming (FOV and shoulder offset)
+        /// </summary>
+        private void HandleAimingCamera()
+        {
+            if (!IsOwner || _virtualCamera == null) return;
+            
+            // Track aiming state changes
+            _isAiming = _input.aim;
+            
+            // Set target values based on aiming state
+            if (_isAiming)
+            {
+                // AIMING: Zoom in and offset to right shoulder
+                _targetFOV = AimingFOV;
+                _targetCameraOffset = _originalCameraOffset + AimingCameraOffset;
+            }
+            else
+            {
+                // NORMAL: Reset to original values
+                _targetFOV = _originalFOV;
+                _targetCameraOffset = _originalCameraOffset;
+            }
+            
+            // Smoothly interpolate FOV
+            var lens = _virtualCamera.Lens;
+            lens.FieldOfView = Mathf.Lerp(lens.FieldOfView, _targetFOV, AimingTransitionSpeed * Time.deltaTime);
+            _virtualCamera.Lens = lens;
+            
+            // Smoothly interpolate camera offset (if ThirdPersonFollow component exists)
+            var thirdPersonFollow = _virtualCamera.GetComponent<Unity.Cinemachine.CinemachineThirdPersonFollow>();
+            if (thirdPersonFollow != null)
+            {
+                thirdPersonFollow.CameraSide = Mathf.Lerp(thirdPersonFollow.CameraSide, _targetCameraOffset.x, AimingTransitionSpeed * Time.deltaTime);
+                thirdPersonFollow.CameraDistance = Mathf.Lerp(thirdPersonFollow.CameraDistance, _targetCameraOffset.y, AimingTransitionSpeed * Time.deltaTime);
+            }
+            
+            _wasAimingLastFrame = _isAiming;
         }
     }
 }
