@@ -175,11 +175,7 @@ public class MainMenuUI : MonoBehaviour
             MultiplayerManager.Instance.OnLobbyPlayersUpdated += OnLobbyPlayersUpdated;
         }
         
-        if (SceneTransitionManager.Instance != null)
-        {
-            SceneTransitionManager.Instance.OnSceneTransitionStarted += OnSceneTransitionStarted;
-            SceneTransitionManager.Instance.OnSceneTransitionFailed += OnSceneTransitionFailed;
-        }
+        // Note: SimpleSceneTransition uses NetworkSceneManager events, no manual subscription needed
         
         
         InitializeReadySystem();
@@ -213,11 +209,7 @@ public class MainMenuUI : MonoBehaviour
             MultiplayerManager.Instance.OnLobbyPlayersUpdated -= OnLobbyPlayersUpdated;
         }
         
-        if (SceneTransitionManager.Instance != null)
-        {
-            SceneTransitionManager.Instance.OnSceneTransitionStarted -= OnSceneTransitionStarted;
-            SceneTransitionManager.Instance.OnSceneTransitionFailed -= OnSceneTransitionFailed;
-        }
+        // Note: SimpleSceneTransition doesn't require manual event unsubscription
         
         if (readySystem != null)
         {
@@ -385,17 +377,7 @@ public class MainMenuUI : MonoBehaviour
         ShowLoading(false);
     }
     
-    private void OnSceneTransitionStarted(string sceneName)
-    {
-        statusManager.ShowLoadingScene(sceneName);
-    }
-    
-    private void OnSceneTransitionFailed(string sceneName)
-    {
-        statusManager.ShowFailedToLoadScene(sceneName);
-        SetButtonsInteractable(true);
-        ShowLoading(false);
-    }
+    // Scene transition events are now handled automatically by SimpleSceneTransition
     
     private void OnPlayerReadyChanged(string playerId, bool ready)
     {
@@ -596,9 +578,13 @@ public class MainMenuUI : MonoBehaviour
             {
                 statusManager.ShowStarting();
                 
-                if (SceneTransitionManager.Instance != null)
+                if (SimpleSceneTransition.Instance != null)
                 {
-                    SceneTransitionManager.Instance.TransitionToGame();
+                    SimpleSceneTransition.Instance.StartGameTransition();
+                }
+                else
+                {
+                    Debug.LogError("SimpleSceneTransition.Instance not found!");
                 }
             }
             else

@@ -219,33 +219,39 @@ public class ExperienceComponent : NetworkBehaviour
     }
 
     /// <summary>
-    /// Apply stat bonuses when leveling up
+    /// Apply stat bonuses when leveling up (SERVER ONLY)
     /// </summary>
     private void ApplyLevelUpBonuses()
     {
-        if (!IsServer) return;
+        if (!IsServer) 
+        {
+            Debug.LogError("ExperienceComponent: CRITICAL - ApplyLevelUpBonuses called on client! This should only run on server.");
+            return;
+        }
         
         int currentLevel = networkCurrentLevel.Value;
         
-        // Apply health bonus
+        // Apply health bonus (SERVER-SIDE ONLY)
         if (healthComponent != null)
         {
             float newMaxHealth = initialHealth + (healthBonusPerLevel * (currentLevel - 1));
-            healthComponent.SetMaxHealthServerRpc(newMaxHealth);
+            
+            // NETWORK FIX: Use proper server-only health modification
+            if (healthComponent.IsServer)
+            {
+                healthComponent.SetMaxHealthServerRpc(newMaxHealth);
+            }
+            else
+            {
+                Debug.LogError("ExperienceComponent: HealthComponent not on server - cannot modify health!");
+            }
             
             if (verboseLogging)
                 Debug.Log($"ExperienceComponent: Health increased to {newMaxHealth}");
         }
         
-        // Apply speed bonuses
-        if (playerController != null)
-        {
-            playerController.MoveSpeed = initialMoveSpeed + (speedBonusPerLevel * (currentLevel - 1));
-            playerController.SprintSpeed = initialSprintSpeed + (speedBonusPerLevel * 1.5f * (currentLevel - 1)); // Sprint gets 1.5x bonus
-            
-            if (verboseLogging)
-                Debug.Log($"ExperienceComponent: Speed increased - Move: {playerController.MoveSpeed}, Sprint: {playerController.SprintSpeed}");
-        }
+        // Apply speed bonuses via ClientRpc to ensure network sync
+        ApplySpeedBonusesClientRpc(currentLevel);
         
         // Damage bonus will be applied by weapon systems checking GetDamageMultiplier()
     }
@@ -270,29 +276,85 @@ public class ExperienceComponent : NetworkBehaviour
 
     /// <summary>
     /// Collect nearby XP orbs (called by XP orbs when in range)
+    /// SECURITY: Server validates distance and prevents duplicate collection
     /// </summary>
-    public void CollectXPOrb(float xpAmount, Vector3 orbPosition)
+    public void CollectXPOrb(float xpAmount, Vector3 orbPosition, NetworkObjectReference orbRef)
     {
         if (!IsOwner) return; // Only owner can collect XP
         
+        // CLIENT-SIDE: Basic distance check for responsiveness
         float distanceToOrb = Vector3.Distance(transform.position, orbPosition);
         if (distanceToOrb <= xpCollectionRange)
         {
-            // Request XP addition from server
-            RequestXPAdditionServerRpc(xpAmount);
+            // Request XP addition from server with orb reference for validation
+            RequestXPAdditionServerRpc(xpAmount, orbPosition, orbRef);
             
             if (verboseLogging)
-                Debug.Log($"ExperienceComponent: Collected XP orb worth {xpAmount} XP");
+                Debug.Log($"ExperienceComponent: Requesting collection of XP orb worth {xpAmount} XP");
         }
     }
 
     /// <summary>
-    /// Server RPC to add XP (called by clients)
+    /// Server RPC to add XP with validation (called by clients)
+    /// SECURITY: Server validates distance, orb existence, and prevents double collection
     /// </summary>
     [ServerRpc]
-    private void RequestXPAdditionServerRpc(float amount, ServerRpcParams serverRpcParams = default)
+    private void RequestXPAdditionServerRpc(float amount, Vector3 orbPosition, NetworkObjectReference orbRef, ServerRpcParams serverRpcParams = default)
     {
-        AddXP(amount);
+        // SERVER-SIDE VALIDATION: Verify orb still exists and is collectible
+        if (orbRef.TryGet(out NetworkObject orbNetObj))
+        {
+            XPOrb xpOrb = orbNetObj.GetComponent<XPOrb>();
+            if (xpOrb != null && !xpOrb.IsCollected)
+            {
+                // Validate distance on server to prevent cheating
+                float serverDistance = Vector3.Distance(transform.position, orbPosition);
+                if (serverDistance <= xpCollectionRange * 1.2f) // 20% tolerance for network lag
+                {
+                    // Mark orb as collected first to prevent race conditions
+                    xpOrb.MarkAsCollected();
+                    
+                    // Add XP
+                    AddXP(amount);
+                    
+                    if (verboseLogging)
+                        Debug.Log($"ExperienceComponent: Server validated and granted {amount} XP");
+                }
+                else
+                {
+                    Debug.LogWarning($"ExperienceComponent: XP collection denied - player too far ({serverDistance:F2} > {xpCollectionRange})");
+                }
+            }
+            else
+            {
+                if (verboseLogging)
+                    Debug.Log($"ExperienceComponent: XP orb already collected or invalid");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"ExperienceComponent: XP orb reference invalid - orb may have despawned");
+        }
+    }
+
+    /// <summary>
+    /// Client RPC to apply speed bonuses (ensures network sync)
+    /// </summary>
+    [ClientRpc]
+    private void ApplySpeedBonusesClientRpc(int currentLevel)
+    {
+        // Apply speed bonuses on all clients for smooth movement
+        if (playerController != null)
+        {
+            float newMoveSpeed = initialMoveSpeed + (speedBonusPerLevel * (currentLevel - 1));
+            float newSprintSpeed = initialSprintSpeed + (speedBonusPerLevel * 1.5f * (currentLevel - 1));
+            
+            playerController.MoveSpeed = newMoveSpeed;
+            playerController.SprintSpeed = newSprintSpeed;
+            
+            if (verboseLogging && IsOwner)
+                Debug.Log($"ExperienceComponent: Speed increased - Move: {newMoveSpeed:F2}, Sprint: {newSprintSpeed:F2}");
+        }
     }
 
     /// <summary>

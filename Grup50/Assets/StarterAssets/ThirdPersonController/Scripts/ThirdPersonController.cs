@@ -262,6 +262,11 @@ namespace StarterAssets
         
         // Public getter for camera assignment checking
         public CinemachineCamera VirtualCamera => _virtualCamera;
+        
+        // Public getters for animation and external systems
+        public bool IsCrouching => _isCrouching;
+        public bool IsSliding => _isSliding;
+        public bool IsGrounded => Grounded;
         private ScreenShakeManager _screenShakeManager;
         
         // sprint variables
@@ -586,18 +591,27 @@ namespace StarterAssets
         {
             _isCrouching = false;
             
+            // Update animation
+            if (_hasAnimator)
+            {
+                _animator.SetBool(_animIDCrouched, false);
+            }
+            
+            // Handle physics restoration
+            StopCrouchingPhysics();
+        }
+        
+        /// <summary>
+        /// Handle the physical aspects of stopping crouching (controller and camera)
+        /// </summary>
+        private void StopCrouchingPhysics()
+        {
             // Restore character controller
             _controller.height = _originalHeight;
             _controller.center = new Vector3(_controller.center.x, _originalCenterY, _controller.center.z);
             
             // Restore target camera position
             _targetCameraY = _originalCameraTargetY;
-            
-            // Update animation
-            if (_hasAnimator)
-            {
-                _animator.SetBool(_animIDCrouched, false);
-            }
         }
         
         private void UpdateCameraPosition()
@@ -1182,7 +1196,17 @@ namespace StarterAssets
             // Cancel crouching when jumping (standard game behavior)
             if (_isCrouching)
             {
-                StopCrouching();
+                // Immediately set crouching to false for animation handling
+                _isCrouching = false;
+                
+                // Update animator immediately for responsive animation
+                if (_hasAnimator)
+                {
+                    _animator.SetBool(_animIDCrouched, false);
+                }
+                
+                // Complete the crouch exit (restore controller and camera)
+                StopCrouchingPhysics();
             }
             
             // Increment jump count
