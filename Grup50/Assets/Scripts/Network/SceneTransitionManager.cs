@@ -137,8 +137,23 @@ public class SimpleSceneTransition : NetworkBehaviour
         var sessions = playerSessionData.GetConnectedPlayerSessions();
         Debug.Log($"[SimpleSceneTransition] Caching data for {sessions.Count} players");
         
+        // CRITICAL DEBUG: Show all available sessions
+        Debug.Log($"[SimpleSceneTransition] Available sessions ({sessions.Count}):");
+        foreach (var session in sessions)
+        {
+            Debug.Log($"  - Player: '{session.playerName}' (ID: {session.playerId}, Character: {session.selectedCharacterId})");
+            Debug.Log($"    ⚠️ CHARACTER SELECTION DEBUG: Player {session.playerId} has character ID {session.selectedCharacterId}");
+        }
+        
         // CRITICAL FIX: Cache data for ALL connected clients, not just sessions
         Debug.Log($"[SimpleSceneTransition] Caching data for all {NetworkManager.Singleton.ConnectedClients.Count} connected clients");
+        
+        // CRITICAL DEBUG: Show all connected clients
+        Debug.Log($"[SimpleSceneTransition] Connected clients ({NetworkManager.Singleton.ConnectedClients.Count}):");
+        foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
+        {
+            Debug.Log($"  - Client ID: {clientPair.Key}");
+        }
         
         foreach (var clientPair in NetworkManager.Singleton.ConnectedClients)
         {
@@ -146,7 +161,50 @@ public class SimpleSceneTransition : NetworkBehaviour
             var client = clientPair.Value;
             
             // Try to find session data for this client
-            var matchingSession = sessions.FirstOrDefault(s => s.playerId.ToString() == client.ClientId.ToString());
+            // CRITICAL FIX: We need to map clientId to the authentication playerId, not compare them directly
+            Debug.Log($"[SimpleSceneTransition] Looking for session for clientId {clientId}...");
+            
+            PlayerSessionInfo matchingSession = default;
+            
+            // First, try to get the session using the PlayerSessionData mapping
+            if (playerSessionData != null)
+            {
+                // Get all sessions and try to find one that belongs to this client
+                foreach (var session in sessions)
+                {
+                    Debug.Log($"    🔍 Checking session: playerId='{session.playerId}', characterId={session.selectedCharacterId}");
+                }
+                
+                // MULTIPLAYER FIX: Use the clientIdToGuid mapping to find sessions for all clients
+                if (clientId == 0) // Host client - use the working method
+                {
+                    var currentSession = playerSessionData.GetCurrentPlayerSession();
+                    if (currentSession.HasValue)
+                    {
+                        matchingSession = currentSession.Value;
+                        Debug.Log($"    ✅ Found host session: playerId='{matchingSession.playerId}', characterId={matchingSession.selectedCharacterId}");
+                    }
+                    else
+                    {
+                        Debug.LogError($"    ❌ No current player session found for host");
+                    }
+                }
+                else
+                {
+                    // For other clients, use the clientIdToGuid mapping
+                    Debug.Log($"    🔍 Looking for non-host client {clientId} using GetPlayerSessionByClientId...");
+                    var clientSession = playerSessionData.GetPlayerSessionByClientId(clientId);
+                    if (clientSession.HasValue)
+                    {
+                        matchingSession = clientSession.Value;
+                        Debug.Log($"    ✅ Found client {clientId} session: playerId='{matchingSession.playerId}', characterId={matchingSession.selectedCharacterId}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"    ⚠️ No session found for client {clientId} via GetPlayerSessionByClientId");
+                    }
+                }
+            }
             
             var playerData = new PlayerData
             {
@@ -156,7 +214,7 @@ public class SimpleSceneTransition : NetworkBehaviour
             };
             
             // CRITICAL FIX: Only use session data if a valid session was found
-            if (!matchingSession.Equals(default) && matchingSession.selectedCharacterId > 0)
+            if (!matchingSession.Equals(default) && matchingSession.selectedCharacterId >= 0)
             {
                 playerData.characterId = matchingSession.selectedCharacterId;
                 
@@ -166,11 +224,15 @@ public class SimpleSceneTransition : NetworkBehaviour
                     playerData.playerName = matchingSession.playerName.ToString();
                 }
                 
-                Debug.Log($"[SimpleSceneTransition] Found session for client {clientId}: Character={playerData.characterId}, Name='{playerData.playerName}'");
+                Debug.Log($"[SimpleSceneTransition] ✅ Found session for client {clientId}: Character={playerData.characterId}, Name='{playerData.playerName}'");
+                Debug.Log($"    🎯 SESSION DEBUG: matchingSession.selectedCharacterId = {matchingSession.selectedCharacterId}");
             }
             else
             {
-                Debug.Log($"[SimpleSceneTransition] No valid session found for client {clientId}, using defaults");
+                Debug.LogError($"[SimpleSceneTransition] ❌ No valid session found for client {clientId}, using defaults");
+                Debug.LogError($"    🎯 SESSION DEBUG: matchingSession.Equals(default) = {matchingSession.Equals(default)}");
+                Debug.LogError($"    🎯 SESSION DEBUG: matchingSession.selectedCharacterId = {matchingSession.selectedCharacterId}");
+                Debug.LogError($"    🎯 SESSION DEBUG: This means character selection was not saved properly!");
             }
             
             playerDataCache[clientId] = playerData;
@@ -282,6 +344,26 @@ public class SimpleSceneTransition : NetworkBehaviour
         // Spawn players with their cached data
         foreach (var playerData in playerDataCache.Values)
         {
+            Debug.Log($"[SimpleSceneTransition] DETAILED: About to spawn player - Client: {playerData.clientId}, Character: {playerData.characterId}, Name: '{playerData.playerName}'");
+            
+            // CRITICAL DEBUG: Verify character data exists before spawning
+            if (playerData.characterId >= 0)
+            {
+                var characterData = CharacterRegistry.Instance?.GetCharacterByID(playerData.characterId);
+                if (characterData != null)
+                {
+                    Debug.Log($"[SimpleSceneTransition] ✅ Character data exists for ID {playerData.characterId}: '{characterData.characterName}'");
+                }
+                else
+                {
+                    Debug.LogError($"[SimpleSceneTransition] ❌ Character data NOT found for ID {playerData.characterId}!");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[SimpleSceneTransition] ⚠️ Player {playerData.clientId} has invalid character ID: {playerData.characterId} (negative)");
+            }
+            
             Debug.Log($"[SimpleSceneTransition] Calling SpawnPlayerWithData - Client: {playerData.clientId}, Character: {playerData.characterId}, Name: '{playerData.playerName}'");
             spawnManager.SpawnPlayerWithData(playerData.clientId, playerData.characterId, playerData.playerName);
         }

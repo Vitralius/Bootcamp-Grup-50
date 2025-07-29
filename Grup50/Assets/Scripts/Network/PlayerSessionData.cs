@@ -206,31 +206,33 @@ public class PlayerSessionData : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void UpdatePlayerCharacterServerRpc(string playerId, int characterId)
     {
+        Debug.Log($"🔄 PLAYERSESSION: [SERVER] UpdatePlayerCharacterServerRpc RECEIVED - Player: {playerId}, Character: {characterId}");
+        
         if (!IsServer) 
         {
-            Debug.LogWarning($"PlayerSessionData: UpdatePlayerCharacterServerRpc called but not server");
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] UpdatePlayerCharacterServerRpc called but not server! IsServer = {IsServer}");
             return;
         }
         
         if (!IsSpawned)
         {
-            Debug.LogWarning($"PlayerSessionData: UpdatePlayerCharacterServerRpc called but not spawned");
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] UpdatePlayerCharacterServerRpc called but not spawned! IsSpawned = {IsSpawned}");
             return;
         }
         
         if (string.IsNullOrEmpty(playerId))
         {
-            Debug.LogError($"PlayerSessionData: Invalid player ID in UpdatePlayerCharacterServerRpc");
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] Invalid player ID in UpdatePlayerCharacterServerRpc: '{playerId}'");
             return;
         }
         
         if (characterId < 0)
         {
-            Debug.LogWarning($"PlayerSessionData: Invalid character ID {characterId} for player {playerId}");
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] Invalid character ID {characterId} for player {playerId}");
             return;
         }
         
-        Debug.Log($"🔄 PLAYERSESSION: [SERVER] UpdatePlayerCharacterServerRpc - Player: {playerId}, Character: {characterId}");
+        Debug.Log($"🔄 PLAYERSESSION: [SERVER] All validations passed, processing request...");
         
         string playerGuid = GetPlayerGuid(playerId);
         if (string.IsNullOrEmpty(playerGuid)) 
@@ -242,6 +244,8 @@ public class PlayerSessionData : NetworkBehaviour
         Debug.Log($"🔄 PLAYERSESSION: [SERVER] Found player GUID: {playerGuid}");
         
         int sessionIndex = FindPlayerSessionIndex(playerGuid);
+        Debug.Log($"🔄 PLAYERSESSION: [SERVER] FindPlayerSessionIndex({playerGuid}) returned: {sessionIndex}");
+        
         if (sessionIndex >= 0)
         {
             PlayerSessionInfo session = playerSessions[sessionIndex];
@@ -249,13 +253,21 @@ public class PlayerSessionData : NetworkBehaviour
             session.selectedCharacterId = characterId;
             playerSessions[sessionIndex] = session;
             
-            Debug.Log($"🔄 PLAYERSESSION: [SERVER] Updated player {playerGuid} character from {oldCharacterId} to {characterId}");
-            Debug.Log($"🔄 PLAYERSESSION: [SERVER] Firing OnPlayerCharacterChanged event");
+            Debug.Log($"🔄 PLAYERSESSION: [SERVER] ✅ Updated character: {oldCharacterId} -> {characterId} for player {playerGuid}");
+            Debug.Log($"    🎯 CRITICAL: Character ID successfully stored in session at index {sessionIndex}");
+            
             OnPlayerCharacterChanged?.Invoke(playerGuid, characterId);
+            Debug.Log($"    ✅ CRITICAL: OnPlayerCharacterChanged event fired");
         }
         else
         {
-            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] Could not find session for player GUID {playerGuid}");
+            Debug.LogError($"🔄 PLAYERSESSION: [SERVER] ❌ Could not find session for player GUID {playerGuid}");
+            Debug.LogError($"    🎯 CRITICAL: Available sessions count: {playerSessions.Count}");
+            for (int i = 0; i < playerSessions.Count; i++)
+            {
+                Debug.LogError($"    🎯 Session {i}: GUID='{playerSessions[i].playerId}', Name='{playerSessions[i].playerName}'");
+            }
+            Debug.LogError($"    🎯 CRITICAL: This means the player session was never created or GUID mismatch!");
         }
     }
     
@@ -303,7 +315,13 @@ public class PlayerSessionData : NetworkBehaviour
     {
         string currentPlayerId = AuthenticationService.Instance.PlayerId;
         Debug.Log($"🔄 PLAYERSESSION: SetPlayerCharacter called - Player: {currentPlayerId}, Character: {characterId}");
+        Debug.Log($"    🎯 CRITICAL: AuthenticationService.Instance.PlayerId = '{currentPlayerId}'");
+        Debug.Log($"    🎯 CRITICAL: IsServer = {IsServer}, IsSpawned = {IsSpawned}");
+        Debug.Log($"    🎯 CRITICAL: About to call UpdatePlayerCharacterServerRpc({currentPlayerId}, {characterId})");
+        
         UpdatePlayerCharacterServerRpc(currentPlayerId, characterId);
+        
+        Debug.Log($"    ✅ CRITICAL: UpdatePlayerCharacterServerRpc call completed");
     }
     
     public void SetPlayerReady(bool isReady)

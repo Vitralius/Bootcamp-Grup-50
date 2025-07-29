@@ -54,6 +54,24 @@ public class GameSpawnManager : NetworkBehaviour
         Debug.Log($"[GameSpawnManager] SpawnPlayerWithData CALLED - Client: {clientId}, Character: {characterId}, Name: {playerName}");
         Debug.Log($"[GameSpawnManager] Current state - IsServer: {NetworkManager.Singleton?.IsServer}, PlayerPrefab: {playerPrefab != null}");
         
+        // CRITICAL DEBUG: Verify character data
+        if (characterId >= 0)
+        {
+            var characterData = CharacterRegistry.Instance?.GetCharacterByID(characterId);
+            if (characterData != null)
+            {
+                Debug.Log($"[GameSpawnManager] ✅ Found character data for ID {characterId}: '{characterData.characterName}'");
+            }
+            else
+            {
+                Debug.LogError($"[GameSpawnManager] ❌ No character data found for ID {characterId}! Check CharacterRegistry.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[GameSpawnManager] ⚠️ Character ID is {characterId} (negative - invalid), player will use default character");
+        }
+        
         if (!NetworkManager.Singleton.IsServer)
         {
             Debug.LogWarning("[GameSpawnManager] Only server can spawn players");
@@ -227,21 +245,47 @@ public class GameSpawnManager : NetworkBehaviour
         }
         
         // Apply character selection if valid
+        Debug.Log($"⚡ [GameSpawnManager] Applying character data - Client: {clientId}, CharacterId: {characterId}");
+        
         if (characterId > 0)
         {
             var characterLoader = playerObject.GetComponent<UltraSimpleMeshSwapper>();
             if (characterLoader != null)
             {
-                characterLoader.SetNetworkCharacterId(characterId);
-                if (showDebugLogs)
+                Debug.Log($"⚡ [GameSpawnManager] Found UltraSimpleMeshSwapper on player {clientId}");
+                
+                // CRITICAL: Wait for NetworkObject to be fully spawned before setting character
+                var networkObject = playerObject.GetComponent<NetworkObject>();
+                if (networkObject != null && networkObject.IsSpawned)
                 {
-                    Debug.Log($"[GameSpawnManager] Applied character {characterId} to player {clientId}");
+                    Debug.Log($"⚡ [GameSpawnManager] NetworkObject is spawned, setting character {characterId} via SetNetworkCharacterId");
+                    characterLoader.SetNetworkCharacterId(characterId);
+                    
+                    Debug.Log($"✅ [GameSpawnManager] Character {characterId} applied to player {clientId}");
+                }
+                else
+                {
+                    // NetworkObject not ready yet, try again later
+                    Debug.LogWarning($"⚠️ [GameSpawnManager] NetworkObject not ready (IsSpawned: {networkObject?.IsSpawned}), will retry character application for client {clientId}");
+                    StartCoroutine(RetryCharacterApplication(playerObject, clientId, characterId));
                 }
             }
             else
             {
-                Debug.LogWarning($"[GameSpawnManager] Player {clientId} missing UltraSimpleMeshSwapper component");
+                Debug.LogError($"❌ [GameSpawnManager] Player {clientId} missing UltraSimpleMeshSwapper component! Character loading will fail.");
+                
+                // Debug all components on the player object
+                var allComponents = playerObject.GetComponents<Component>();
+                Debug.LogError($"❌ [GameSpawnManager] Player {clientId} has {allComponents.Length} components:");
+                foreach (var comp in allComponents)
+                {
+                    Debug.LogError($"  - {comp.GetType().Name}");
+                }
             }
+        }
+        else
+        {
+            Debug.LogWarning($"⚠️ [GameSpawnManager] Character ID {characterId} is negative for client {clientId} - player will use default appearance");
         }
         
         // Set player name if available
@@ -256,6 +300,41 @@ public class GameSpawnManager : NetworkBehaviour
         
         // Enable player components properly
         EnablePlayerComponents(playerObject, clientId);
+    }
+    
+    /// <summary>
+    /// Retry character application if NetworkObject wasn't ready initially
+    /// </summary>
+    private System.Collections.IEnumerator RetryCharacterApplication(GameObject playerObject, ulong clientId, int characterId)
+    {
+        int maxRetries = 10; // 1 second max wait (10 * 0.1s)
+        int retries = 0;
+        
+        while (retries < maxRetries)
+        {
+            yield return new WaitForSeconds(0.1f);
+            retries++;
+            
+            if (playerObject == null)
+            {
+                Debug.LogWarning($"[GameSpawnManager] Player object destroyed during character retry for client {clientId}");
+                yield break;
+            }
+            
+            var networkObject = playerObject.GetComponent<NetworkObject>();
+            if (networkObject != null && networkObject.IsSpawned)
+            {
+                var characterLoader = playerObject.GetComponent<UltraSimpleMeshSwapper>();
+                if (characterLoader != null)
+                {
+                    characterLoader.SetNetworkCharacterId(characterId);
+                    Debug.Log($"[GameSpawnManager] ✅ Successfully applied character {characterId} to player {clientId} after {retries} retries");
+                    yield break;
+                }
+            }
+        }
+        
+        Debug.LogError($"[GameSpawnManager] ❌ Failed to apply character {characterId} to player {clientId} after {maxRetries} retries");
     }
     
     /// <summary>

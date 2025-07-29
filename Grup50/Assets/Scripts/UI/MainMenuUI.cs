@@ -743,12 +743,14 @@ public class MainMenuUI : MonoBehaviour
         if (playerSessionData != null)
         {
             Debug.Log($"🔄 MAINMENU: PlayerSessionData found - calling SetPlayerCharacter({currentSelectedCharacter.characterID})");
+            Debug.Log($"    🎯 CRITICAL: Character being set - Name: '{currentSelectedCharacter.characterName}', ID: {currentSelectedCharacter.characterID}");
             
             // Check if we're in a lobby and networked
             if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
             {
                 Debug.Log($"🔄 MAINMENU: Network is active - setting character via PlayerSessionData");
                 playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+                Debug.Log($"    ✅ CRITICAL: SetPlayerCharacter({currentSelectedCharacter.characterID}) called successfully");
             }
             else
             {
