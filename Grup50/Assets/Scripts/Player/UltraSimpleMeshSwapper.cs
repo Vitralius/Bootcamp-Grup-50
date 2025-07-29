@@ -1,5 +1,6 @@
 using UnityEngine;
 using Unity.Netcode;
+using System.Linq;
 
 /// <summary>
 /// CleanCharacterLoader - Simple character mesh and material swapper
@@ -90,12 +91,7 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
                 IsSpawned && 
                 NetworkManager.Singleton.IsConnectedClient)
             {
-                // Additional check: wait for scene to be fully loaded
-                if (SimpleSceneTransition.Instance != null && 
-                    (SimpleSceneTransition.Instance.IsInLobby() || SimpleSceneTransition.Instance.IsInGame()))
-                {
-                    break; // Network is ready
-                }
+                break; // Network is ready
             }
             
             attempts++;
@@ -205,46 +201,66 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
     /// </summary>
     public bool LoadCharacter(CharacterData characterData)
     {
+        Debug.Log($"🎯 CleanCharacterLoader: LoadCharacter called with character: {(characterData?.characterName ?? "NULL")} on {gameObject.name}");
+        
         if (characterData == null)
         {
-            Debug.LogWarning("CleanCharacterLoader: Cannot load null character data");
+            Debug.LogError("❌ CleanCharacterLoader: Cannot load null character data");
             return false;
         }
+        
+        Debug.Log($"🎯 CleanCharacterLoader: Character details - Name: '{characterData.characterName}', ID: {characterData.characterID}");
+        Debug.Log($"🎯 CleanCharacterLoader: Character mesh: {(characterData.skeletalMesh?.name ?? "NULL")}");
+        Debug.Log($"🎯 CleanCharacterLoader: Character materials: {characterData.characterMaterials?.Length ?? 0}");
         
         // Ensure we're initialized before loading
         if (!isInitialized)
         {
-            Debug.Log("CleanCharacterLoader: Not initialized yet, initializing now...");
+            Debug.Log("🎯 CleanCharacterLoader: Not initialized yet, initializing now...");
             InitializeSafely();
         }
         
         if (!isInitialized)
         {
-            Debug.LogError("CleanCharacterLoader: Initialization failed");
+            Debug.LogError("❌ CleanCharacterLoader: Initialization failed");
             return false;
         }
+        
+        Debug.Log($"🎯 CleanCharacterLoader: Initialization OK. Target renderer: {(targetRenderer?.name ?? "NULL")}");
         
         if (targetRenderer == null)
         {
-            Debug.LogError($"CleanCharacterLoader: Missing SkinnedMeshRenderer on {gameObject.name}. Cannot load character {characterData.characterName}");
+            Debug.LogError($"❌ CleanCharacterLoader: Missing SkinnedMeshRenderer on {gameObject.name}. Cannot load character {characterData.characterName}");
             return false;
         }
         
-        Debug.Log($"CleanCharacterLoader: Loading character '{characterData.characterName}'");
+        Debug.Log($"✅ CleanCharacterLoader: Starting character loading for '{characterData.characterName}'");
         
         currentCharacterData = characterData;
         bool success = true;
         
         // Always apply visual changes
-        success &= SwapMesh(characterData.skeletalMesh);
-        success &= ApplyMaterials(characterData.characterMaterials);
+        Debug.Log($"🎯 CleanCharacterLoader: Step 1 - Swapping mesh...");
+        bool meshSuccess = SwapMesh(characterData.skeletalMesh);
+        Debug.Log($"🎯 CleanCharacterLoader: Mesh swap result: {meshSuccess}");
+        success &= meshSuccess;
+        
+        Debug.Log($"🎯 CleanCharacterLoader: Step 2 - Applying materials...");
+        bool materialSuccess = ApplyMaterials(characterData.characterMaterials);
+        Debug.Log($"🎯 CleanCharacterLoader: Materials result: {materialSuccess}");
+        success &= materialSuccess;
         
         // Apply non-preview changes
         if (!isPreviewMode)
         {
+            Debug.Log($"🎯 CleanCharacterLoader: Step 3 - Applying animator (non-preview mode)...");
             success &= ApplyAnimatorController(characterData.animatorController);
             success &= ApplyCharacterStats(characterData);
             success &= ApplyStartingWeapon(characterData);
+        }
+        else
+        {
+            Debug.Log($"🎯 CleanCharacterLoader: Skipping animator/stats/weapon (preview mode)");
         }
         
         if (success)
@@ -264,22 +280,59 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
     /// </summary>
     public bool LoadCharacterByID(int characterID)
     {
-        // Handle registry not ready yet
+        Debug.Log($"🎮 CleanCharacterLoader: LoadCharacterByID called with ID: {characterID} on {gameObject.name}");
+        Debug.Log($"🎮 CleanCharacterLoader: Is initialized: {isInitialized}, Is preview mode: {isPreviewMode}");
+        Debug.Log($"🎮 CleanCharacterLoader: Target renderer: {(targetRenderer?.name ?? "NULL")}");
+        
+        if (characterID < 0)
+        {
+            Debug.LogWarning($"🎮 CleanCharacterLoader: Invalid character ID: {characterID}");
+            return false;
+        }
+        
+        // CRITICAL DEBUG: Check CharacterRegistry state
+        Debug.Log($"🎮 CleanCharacterLoader: Checking CharacterRegistry.Instance...");
         if (CharacterRegistry.Instance == null)
         {
-            Debug.LogWarning($"CleanCharacterLoader: CharacterRegistry not ready, retrying in 0.5s for character ID {characterID}");
+            Debug.LogError($"❌ CleanCharacterLoader: CharacterRegistry.Instance is NULL! This is a major issue.");
+            Debug.LogError($"❌ CleanCharacterLoader: Resources.Load path: 'CharacterRegistry'");
+            Debug.LogError($"❌ CleanCharacterLoader: This means the CharacterRegistry asset is not in Resources folder or not named correctly");
+            
+            // Try to debug the Resources.Load call
+            var loadedRegistry = Resources.Load<CharacterRegistry>("CharacterRegistry");
+            Debug.LogError($"❌ CleanCharacterLoader: Direct Resources.Load result: {(loadedRegistry != null ? "FOUND" : "NULL")}");
+            
+            Debug.LogWarning($"🎮 CleanCharacterLoader: CharacterRegistry not ready, retrying in 0.5s for character ID {characterID}");
             StartCoroutine(RetryLoadCharacterByID(characterID, 3)); // Retry up to 3 times
             return false;
+        }
+        
+        Debug.Log($"✅ CleanCharacterLoader: CharacterRegistry.Instance found!");
+        Debug.Log($"🎮 CleanCharacterLoader: Registry has {CharacterRegistry.Instance.GetCharacterCount()} characters");
+        
+        // List all available characters for debugging
+        var allCharacters = CharacterRegistry.Instance.GetAllCharacters();
+        Debug.Log($"🎮 CleanCharacterLoader: Available characters:");
+        foreach (var character in allCharacters)
+        {
+            Debug.Log($"  - ID: {character.characterID}, Name: '{character.characterName}'");
         }
         
         CharacterData characterData = CharacterRegistry.Instance.GetCharacterByID(characterID);
         if (characterData == null)
         {
-            Debug.LogWarning($"CleanCharacterLoader: Character ID {characterID} not found in registry");
+            Debug.LogError($"❌ CleanCharacterLoader: Character with ID {characterID} NOT FOUND in registry!");
+            Debug.LogError($"❌ CleanCharacterLoader: Available character IDs: [{string.Join(", ", allCharacters.Select(c => c.characterID.ToString()))}]");
             return false;
         }
         
-        return LoadCharacter(characterData);
+        Debug.Log($"✅ CleanCharacterLoader: Found character '{characterData.characterName}' (ID: {characterID})");
+        Debug.Log($"🎮 CleanCharacterLoader: Character mesh: {(characterData.skeletalMesh?.name ?? "NULL")}");
+        Debug.Log($"🎮 CleanCharacterLoader: Character materials: {characterData.characterMaterials?.Length ?? 0}");
+        
+        bool result = LoadCharacter(characterData);
+        Debug.Log($"🎮 CleanCharacterLoader: LoadCharacter result: {result}");
+        return result;
     }
     
     /// <summary>
@@ -334,22 +387,51 @@ public class UltraSimpleMeshSwapper : NetworkBehaviour
     /// </summary>
     public bool SwapMesh(Mesh newMesh)
     {
-        if (targetRenderer == null || newMesh == null)
+        Debug.Log($"🔄 CleanCharacterLoader: SwapMesh called - newMesh: {(newMesh?.name ?? "NULL")}");
+        Debug.Log($"🔄 CleanCharacterLoader: Target renderer: {(targetRenderer?.name ?? "NULL")}");
+        
+        if (targetRenderer == null)
         {
-            Debug.LogWarning("CleanCharacterLoader: Cannot swap mesh - missing renderer or mesh");
+            Debug.LogError("❌ CleanCharacterLoader: Cannot swap mesh - targetRenderer is NULL");
             return false;
         }
         
-        Debug.Log($"CleanCharacterLoader: Swapping from '{targetRenderer.sharedMesh?.name}' to '{newMesh.name}'");
+        if (newMesh == null)
+        {
+            Debug.LogError("❌ CleanCharacterLoader: Cannot swap mesh - newMesh is NULL");
+            return false;
+        }
         
-        // THIS IS ALL YOU NEED IF "OPTIMIZE GAME OBJECTS" IS ENABLED!
-        targetRenderer.sharedMesh = newMesh;
+        Debug.Log($"🔄 CleanCharacterLoader: Swapping from '{targetRenderer.sharedMesh?.name ?? "NULL"}' to '{newMesh.name}'");
+        Debug.Log($"🔄 CleanCharacterLoader: New mesh vertices: {newMesh.vertexCount}, triangles: {newMesh.triangles.Length / 3}");
         
-        // Update bounds
-        targetRenderer.localBounds = newMesh.bounds;
-        
-        Debug.Log($"CleanCharacterLoader: ✅ Mesh swap complete!");
-        return true;
+        try
+        {
+            // THIS IS ALL YOU NEED IF "OPTIMIZE GAME OBJECTS" IS ENABLED!
+            targetRenderer.sharedMesh = newMesh;
+            
+            // Update bounds
+            targetRenderer.localBounds = newMesh.bounds;
+            
+            Debug.Log($"✅ CleanCharacterLoader: Mesh swap complete! Final mesh: {targetRenderer.sharedMesh?.name}");
+            
+            // Verify the swap worked
+            if (targetRenderer.sharedMesh == newMesh)
+            {
+                Debug.Log($"✅ CleanCharacterLoader: Mesh swap verification PASSED");
+                return true;
+            }
+            else
+            {
+                Debug.LogError($"❌ CleanCharacterLoader: Mesh swap verification FAILED - Expected: {newMesh.name}, Got: {targetRenderer.sharedMesh?.name}");
+                return false;
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"❌ CleanCharacterLoader: Exception during mesh swap: {e.Message}");
+            return false;
+        }
     }
     
     /// <summary>
