@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae7c406fcd5aa0c42b45c4833873ff68, type: 3}
+  m_Name: MainWeapon
+  m_EditorClassIdentifier: 
+  weaponName: Projectile Knife
+  damage: 10
+  fireRate: 1
+  projectileSpeed: 15
+  range: 10
+  projectilePrefab: {fileID: 0}
+  projectileCount: 1
+  spreadAngle: 0
+  projectileLifetime: 5
+  autoTarget: 0
+  targetLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  hasAreaDamage: 0
+  areaRadius: 0
+  pierceTargets: 0
+  maxPierceCount: 0
+  maxLevel: 5
+  damageScaling: 1.5
+  fireRateScaling: 0.2
+  rangeScaling: 1
+  muzzleFlashEffect: {fileID: 0}
+  fireSound: {fileID: 0}
+  soundVolume: 1

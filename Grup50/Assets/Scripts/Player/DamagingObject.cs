@@ -7,6 +7,13 @@ public class DamagingObject : NetworkBehaviour
 {
     [Header("Damage Settings")]
     [SerializeField] private float damageAmount = 25f;
+    
+    // Public property for accessing damage
+    public float damage 
+    { 
+        get => damageAmount; 
+        set => damageAmount = value; 
+    }
     [SerializeField] private float damageDelay = 0.5f;
     [SerializeField] private bool dealDamageOnce = false;
     [SerializeField] private bool dealDamageOverTime = false;

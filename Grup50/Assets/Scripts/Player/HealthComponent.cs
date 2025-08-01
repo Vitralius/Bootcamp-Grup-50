@@ -451,6 +451,27 @@ public class HealthComponent : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// Set max health (for leveling systems)
+    /// </summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void SetMaxHealthServerRpc(float newMaxHealth)
+    {
+        if (!IsServer) return;
+        
+        float oldMaxHealth = maxHealth;
+        maxHealth = Mathf.Max(1f, newMaxHealth);
+        
+        // If max health increased, heal the difference
+        if (newMaxHealth > oldMaxHealth)
+        {
+            float healthIncrease = newMaxHealth - oldMaxHealth;
+            currentHealth.Value = Mathf.Min(maxHealth, currentHealth.Value + healthIncrease);
+        }
+        
+        Debug.Log($"[HealthComponent] Max health updated: {oldMaxHealth} -> {maxHealth}");
+    }
+    
     public float GetMinShakeRange()
     {
         return minShakeRange;
