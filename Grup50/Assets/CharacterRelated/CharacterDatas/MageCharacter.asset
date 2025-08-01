@@ -24,20 +24,20 @@ MonoBehaviour:
   characterScale: {x: 1, y: 1, z: 1}
   targetRendererNames: []
   _sameSkeleton: 1
-  moveSpeed: 2
-  sprintSpeed: 5.335
+  moveSpeed: 20
+  sprintSpeed: 53.35
   rotationSmoothTime: 0.12
   speedChangeRate: 10
   holdToCrouch: 1
   crouchSpeedMultiplier: 0.75
-  slideSpeedThreshold: 2.5
-  maxSlideSpeed: 10
+  slideSpeedThreshold: 25
+  maxSlideSpeed: 100
   slideDeceleration: 7
   minSlideDuration: 0.2
   slideJumpMomentumMultiplier: 1.2
   slideSteeringControl: 1
   slideEntryBoost: 1.4
-  jumpHeight: 1.2
+  jumpHeight: 12
   enableDoubleJump: 1
   maxJumps: 2
   gravity: -15
