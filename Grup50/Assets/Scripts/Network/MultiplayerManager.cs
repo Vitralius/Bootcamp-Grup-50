@@ -98,13 +98,6 @@ public class MultiplayerManager : MonoBehaviour
                 Data = new Dictionary<string, DataObject>
                 {
                     { "RelayJoinCode", new DataObject(DataObject.VisibilityOptions.Member, joinCode) }
-                },
-                Player = new Player
-                {
-                    Data = new Dictionary<string, PlayerDataObject>
-                    {
-                        { "RelayAllocationId", new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, allocation.AllocationId.ToString()) }
-                    }
                 }
             };
             
@@ -112,7 +105,16 @@ public class MultiplayerManager : MonoBehaviour
             currentLobbyCode = currentLobby.LobbyCode;
             
             // Start NetworkManager as Host
-            NetworkManager.Singleton.StartHost();
+            if (NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.StartHost();
+            }
+            else
+            {
+                Debug.LogError("NetworkManager.Singleton is null when trying to start host");
+                OnLobbyError?.Invoke("NetworkManager not available");
+                return null;
+            }
             
             Debug.Log($"Lobby created with code: {currentLobbyCode}");
             OnLobbyCodeGenerated?.Invoke(currentLobbyCode);
@@ -165,7 +167,16 @@ public class MultiplayerManager : MonoBehaviour
             await LobbyService.Instance.UpdatePlayerAsync(currentLobby.Id, AuthenticationService.Instance.PlayerId, updateOptions);
             
             // Start NetworkManager as Client
-            NetworkManager.Singleton.StartClient();
+            if (NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.StartClient();
+            }
+            else
+            {
+                Debug.LogError("NetworkManager.Singleton is null when trying to start client");
+                OnLobbyError?.Invoke("NetworkManager not available");
+                return false;
+            }
             
             Debug.Log($"Joined lobby: {lobbyCode}");
             OnLobbyJoined?.Invoke(lobbyCode);
@@ -192,13 +203,16 @@ public class MultiplayerManager : MonoBehaviour
                 await LobbyService.Instance.RemovePlayerAsync(currentLobby.Id, AuthenticationService.Instance.PlayerId);
                 
                 // Stop NetworkManager
-                if (NetworkManager.Singleton.IsHost)
+                if (NetworkManager.Singleton != null)
                 {
-                    NetworkManager.Singleton.Shutdown();
+                    if (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsClient)
+                    {
+                        NetworkManager.Singleton.Shutdown();
+                    }
                 }
-                else if (NetworkManager.Singleton.IsClient)
+                else
                 {
-                    NetworkManager.Singleton.Shutdown();
+                    Debug.LogWarning("NetworkManager.Singleton is null when trying to shutdown");
                 }
                 
                 currentLobby = null;
@@ -264,7 +278,7 @@ public class MultiplayerManager : MonoBehaviour
     
     private async void SendLobbyHeartbeat()
     {
-        if (currentLobby != null && NetworkManager.Singleton.IsHost)
+        if (currentLobby != null && NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost)
         {
             try
             {

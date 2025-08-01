@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -26,6 +27,12 @@ public class MainMenuUI : MonoBehaviour
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveLobbyButton;
     
+    [Header("Character Selection")]
+    [SerializeField] private Button previousCharacterButton;
+    [SerializeField] private Button nextCharacterButton;
+    [SerializeField] private TMP_Text currentCharacterNameText;
+    [SerializeField] private GameObject characterPreviewArea;
+    
     [Header("Status UI")]
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private GameObject loadingPanel;
@@ -37,6 +44,12 @@ public class MainMenuUI : MonoBehaviour
     
     private bool isReady = false;
     private LobbyReadySystem readySystem;
+    private PlayerSessionData playerSessionData;
+    
+    // Character selection
+    private List<CharacterData> availableCharacters;
+    private int currentCharacterIndex = 0;
+    private CharacterData currentSelectedCharacter;
     
     private void Start()
     {
@@ -44,6 +57,9 @@ public class MainMenuUI : MonoBehaviour
         SetupUI();
         SubscribeToEvents();
         statusManager.ShowReadyToStart();
+        
+        // Initialize character selection early
+        InitializeCharacterSelection();
         
         UpdateUIState();
     }
@@ -119,6 +135,13 @@ public class MainMenuUI : MonoBehaviour
         if (leaveLobbyButton != null)
             leaveLobbyButton.onClick.AddListener(OnLeaveLobbyClicked);
         
+        // Setup character selection buttons
+        if (previousCharacterButton != null)
+            previousCharacterButton.onClick.AddListener(OnPreviousCharacterClicked);
+        
+        if (nextCharacterButton != null)
+            nextCharacterButton.onClick.AddListener(OnNextCharacterClicked);
+        
         // Setup input field
         if (lobbyCodeInputField != null)
         {
@@ -152,14 +175,11 @@ public class MainMenuUI : MonoBehaviour
             MultiplayerManager.Instance.OnLobbyPlayersUpdated += OnLobbyPlayersUpdated;
         }
         
-        if (SceneTransitionManager.Instance != null)
-        {
-            SceneTransitionManager.Instance.OnSceneTransitionStarted += OnSceneTransitionStarted;
-            SceneTransitionManager.Instance.OnSceneTransitionFailed += OnSceneTransitionFailed;
-        }
+        // Note: SimpleSceneTransition uses NetworkSceneManager events, no manual subscription needed
         
         
         InitializeReadySystem();
+        // PlayerSessionData will be initialized when lobby is created/joined
     }
     
     private void InitializeReadySystem()
@@ -189,16 +209,20 @@ public class MainMenuUI : MonoBehaviour
             MultiplayerManager.Instance.OnLobbyPlayersUpdated -= OnLobbyPlayersUpdated;
         }
         
-        if (SceneTransitionManager.Instance != null)
-        {
-            SceneTransitionManager.Instance.OnSceneTransitionStarted -= OnSceneTransitionStarted;
-            SceneTransitionManager.Instance.OnSceneTransitionFailed -= OnSceneTransitionFailed;
-        }
+        // Note: SimpleSceneTransition doesn't require manual event unsubscription
         
         if (readySystem != null)
         {
             readySystem.OnPlayerReadyChanged -= OnPlayerReadyChanged;
             readySystem.OnAllPlayersReadyChanged -= OnAllPlayersReadyChanged;
+        }
+        
+        // Unsubscribe from PlayerSessionData events
+        if (playerSessionData != null)
+        {
+            playerSessionData.OnPlayerSessionUpdated -= OnPlayerSessionUpdated;
+            playerSessionData.OnPlayerCharacterChanged -= OnPlayerCharacterChanged;
+            playerSessionData.OnPlayerReadyChanged -= OnPlayerReadyChangedFromSession;
         }
     }
     
@@ -309,12 +333,20 @@ public class MainMenuUI : MonoBehaviour
     private void OnLobbyCodeGenerated(string lobbyCode)
     {
         statusManager.ShowLobbyCode(lobbyCode);
+        
+        // Delay initialization to ensure NetworkManager is fully ready
+        Invoke(nameof(DelayedInitializeNetworkComponents), 0.5f);
+        
         UpdateUIState();
     }
     
     private void OnLobbyJoined(string lobbyCode)
     {
         statusManager.ShowLobbyCode(lobbyCode);
+        
+        // Delay initialization to ensure NetworkManager is fully ready
+        Invoke(nameof(DelayedInitializeNetworkComponents), 0.5f);
+        
         UpdateUIState();
     }
     
@@ -345,17 +377,7 @@ public class MainMenuUI : MonoBehaviour
         ShowLoading(false);
     }
     
-    private void OnSceneTransitionStarted(string sceneName)
-    {
-        statusManager.ShowLoadingScene(sceneName);
-    }
-    
-    private void OnSceneTransitionFailed(string sceneName)
-    {
-        statusManager.ShowFailedToLoadScene(sceneName);
-        SetButtonsInteractable(true);
-        ShowLoading(false);
-    }
+    // Scene transition events are now handled automatically by SimpleSceneTransition
     
     private void OnPlayerReadyChanged(string playerId, bool ready)
     {
@@ -428,6 +450,7 @@ public class MainMenuUI : MonoBehaviour
             UpdatePlayersList();
             UpdateReadyButton();
             UpdateStartGameButton();
+            UpdateCharacterSelection();
         }
     }
     
@@ -526,20 +549,25 @@ public class MainMenuUI : MonoBehaviour
     
     private void OnReadyButtonClicked()
     {
+        bool newReadyState = !isReady;
+        Debug.Log($"Ready button clicked: changing from {isReady} to {newReadyState}");
+        
+        // Update both systems
         if (readySystem != null)
         {
-            bool newReadyState = !isReady;
-            Debug.Log($"Ready button clicked: changing from {isReady} to {newReadyState}");
-            
-            // Send to server first
             readySystem.SetPlayerReady(newReadyState);
-            
-            // Update local state immediately for responsiveness
-            isReady = newReadyState;
-            UpdateReadyButton();
-            
-            // Note: OnPlayerReadyChanged event will confirm the state change from server
         }
+        
+        if (playerSessionData != null)
+        {
+            playerSessionData.SetPlayerReady(newReadyState);
+        }
+        
+        // Update local state immediately for responsiveness
+        isReady = newReadyState;
+        UpdateReadyButton();
+        
+        // Note: OnPlayerReadyChanged event will confirm the state change from server
     }
     
     private void OnStartGameClicked()
@@ -550,9 +578,13 @@ public class MainMenuUI : MonoBehaviour
             {
                 statusManager.ShowStarting();
                 
-                if (SceneTransitionManager.Instance != null)
+                if (SimpleSceneTransition.Instance != null)
                 {
-                    SceneTransitionManager.Instance.TransitionToGame();
+                    SimpleSceneTransition.Instance.StartGameTransition();
+                }
+                else
+                {
+                    Debug.LogError("SimpleSceneTransition.Instance not found!");
                 }
             }
             else
@@ -581,6 +613,317 @@ public class MainMenuUI : MonoBehaviour
         {
             statusText.text = message;
             Debug.Log($"MainMenu Status: {message}");
+        }
+    }
+    
+    private void InitializePlayerSessionData()
+    {
+        // Only initialize when we're in a lobby (NetworkManager is ready)
+        if (Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            return; // Don't create network components until NetworkManager is ready
+        }
+        
+        try
+        {
+            // Get or create player session data
+            playerSessionData = FindFirstObjectByType<PlayerSessionData>();
+            if (playerSessionData == null)
+            {
+                GameObject sessionDataGO = new GameObject("PlayerSessionData");
+                playerSessionData = sessionDataGO.AddComponent<PlayerSessionData>();
+                Debug.Log("Created new PlayerSessionData component");
+            }
+            
+            // Subscribe to PlayerSessionData events
+            if (playerSessionData != null)
+            {
+                playerSessionData.OnPlayerSessionUpdated += OnPlayerSessionUpdated;
+                playerSessionData.OnPlayerCharacterChanged += OnPlayerCharacterChanged;
+                playerSessionData.OnPlayerReadyChanged += OnPlayerReadyChangedFromSession;
+                Debug.Log("Subscribed to PlayerSessionData events");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to initialize PlayerSessionData: {e.Message}");
+        }
+    }
+    
+    private void DelayedInitializeNetworkComponents()
+    {
+        Debug.Log("Attempting delayed network component initialization...");
+        
+        // Initialize character selection first (doesn't need network)
+        InitializeCharacterSelection();
+        
+        // Then initialize network components
+        InitializePlayerSessionData();
+        
+        // Update UI to reflect new state
+        UpdateCharacterSelection();
+    }
+    
+    private void InitializeCharacterSelection()
+    {
+        Debug.Log("Initializing character selection...");
+        
+        // Get all available characters from the registry
+        if (CharacterRegistry.Instance != null)
+        {
+            availableCharacters = CharacterRegistry.Instance.GetAllCharacters().ToList();
+            if (availableCharacters.Count > 0)
+            {
+                currentCharacterIndex = 0;
+                currentSelectedCharacter = availableCharacters[currentCharacterIndex];
+                
+                Debug.Log($"Initialized character selection with {availableCharacters.Count} characters. Current: {currentSelectedCharacter.characterName}");
+                
+                // Update the UI immediately
+                if (currentCharacterNameText != null)
+                {
+                    currentCharacterNameText.text = currentSelectedCharacter.characterName;
+                }
+                
+                // Set initial character in session data if available
+                if (playerSessionData != null && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+                {
+                    playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+                }
+            }
+            else
+            {
+                Debug.LogWarning("No characters found in CharacterRegistry!");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("CharacterRegistry not found! Character selection will not work.");
+        }
+    }
+    
+    private void UpdateCharacterSelection()
+    {
+        if (currentSelectedCharacter != null && currentCharacterNameText != null)
+        {
+            currentCharacterNameText.text = currentSelectedCharacter.characterName;
+        }
+        
+        // Update button states - only enable if we have characters and we're in a lobby
+        bool inLobby = MultiplayerManager.Instance != null && MultiplayerManager.Instance.IsInLobby();
+        bool hasMultipleCharacters = availableCharacters != null && availableCharacters.Count > 1;
+        bool shouldEnableButtons = inLobby && hasMultipleCharacters;
+        
+        Debug.Log($"UpdateCharacterSelection: inLobby={inLobby}, hasMultipleCharacters={hasMultipleCharacters}, shouldEnableButtons={shouldEnableButtons}");
+        
+        if (previousCharacterButton != null)
+        {
+            previousCharacterButton.interactable = shouldEnableButtons;
+            Debug.Log($"Previous character button interactable: {previousCharacterButton.interactable}");
+        }
+        
+        if (nextCharacterButton != null)
+        {
+            nextCharacterButton.interactable = shouldEnableButtons;
+            Debug.Log($"Next character button interactable: {nextCharacterButton.interactable}");
+        }
+    }
+    
+    private void OnPreviousCharacterClicked()
+    {
+        if (availableCharacters == null || availableCharacters.Count <= 1) return;
+        
+        currentCharacterIndex = (currentCharacterIndex - 1 + availableCharacters.Count) % availableCharacters.Count;
+        currentSelectedCharacter = availableCharacters[currentCharacterIndex];
+        
+        Debug.Log($"🔄 MAINMENU: Previous character clicked - {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+        Debug.Log($"🔄 MAINMENU: Current character index: {currentCharacterIndex}/{availableCharacters.Count}");
+        
+        // Update session data
+        if (playerSessionData != null)
+        {
+            Debug.Log($"🔄 MAINMENU: PlayerSessionData found - calling SetPlayerCharacter({currentSelectedCharacter.characterID})");
+            Debug.Log($"    🎯 CRITICAL: Character being set - Name: '{currentSelectedCharacter.characterName}', ID: {currentSelectedCharacter.characterID}");
+            
+            // Check if we're in a lobby and networked
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                Debug.Log($"🔄 MAINMENU: Network is active - setting character via PlayerSessionData");
+                playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+                Debug.Log($"    ✅ CRITICAL: SetPlayerCharacter({currentSelectedCharacter.characterID}) called successfully");
+            }
+            else
+            {
+                Debug.LogWarning($"🔄 MAINMENU: Network not active - cannot sync character selection");
+            }
+        }
+        else
+        {
+            Debug.LogError("🔄 MAINMENU: playerSessionData is NULL! Character preview will not update.");
+            Debug.LogError($"🔄 MAINMENU: NetworkManager status: {(Unity.Netcode.NetworkManager.Singleton != null ? "Active" : "NULL")}");
+        }
+        
+        // Update local UI immediately
+        UpdateCharacterSelection();
+        
+        // FALLBACK: If preview doesn't update via events, try direct update
+        Invoke(nameof(FallbackUpdatePreview), 0.2f);
+        
+        Debug.Log($"🔄 MAINMENU: Character selection complete for {currentSelectedCharacter.characterName}");
+    }
+    
+    private void OnNextCharacterClicked()
+    {
+        if (availableCharacters == null || availableCharacters.Count <= 1) return;
+        
+        currentCharacterIndex = (currentCharacterIndex + 1) % availableCharacters.Count;
+        currentSelectedCharacter = availableCharacters[currentCharacterIndex];
+        
+        Debug.Log($"🔄 MAINMENU: Next character clicked - {currentSelectedCharacter.characterName} (ID: {currentSelectedCharacter.characterID})");
+        Debug.Log($"🔄 MAINMENU: Current character index: {currentCharacterIndex}/{availableCharacters.Count}");
+        
+        // Update session data
+        if (playerSessionData != null)
+        {
+            Debug.Log($"🔄 MAINMENU: PlayerSessionData found - calling SetPlayerCharacter({currentSelectedCharacter.characterID})");
+            
+            // Check if we're in a lobby and networked
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                Debug.Log($"🔄 MAINMENU: Network is active - setting character via PlayerSessionData");
+                playerSessionData.SetPlayerCharacter(currentSelectedCharacter.characterID);
+            }
+            else
+            {
+                Debug.LogWarning($"🔄 MAINMENU: Network not active - cannot sync character selection");
+            }
+        }
+        else
+        {
+            Debug.LogError("🔄 MAINMENU: playerSessionData is NULL! Character preview will not update.");
+            Debug.LogError($"🔄 MAINMENU: NetworkManager status: {(Unity.Netcode.NetworkManager.Singleton != null ? "Active" : "NULL")}");
+        }
+        
+        // Update local UI immediately
+        UpdateCharacterSelection();
+        
+        // FALLBACK: If preview doesn't update via events, try direct update
+        Invoke(nameof(FallbackUpdatePreview), 0.2f);
+        
+        Debug.Log($"🔄 MAINMENU: Character selection complete for {currentSelectedCharacter.characterName}");
+    }
+    
+    private void OnPlayerSessionUpdated(PlayerSessionInfo sessionInfo)
+    {
+        // Update UI when any player session changes
+        UpdatePlayersList();
+        UpdateStartGameButton();
+    }
+    
+    private void OnPlayerCharacterChanged(string playerGuid, int characterId)
+    {
+        Debug.Log($"Player {playerGuid} changed character to {characterId}");
+        // Character previews will be updated automatically by LobbyCharacterPreviewPoint
+    }
+    
+    private void OnPlayerReadyChangedFromSession(string playerGuid, bool isReady)
+    {
+        Debug.Log($"Player {playerGuid} ready state changed to {isReady}");
+        UpdateStartGameButton();
+    }
+    
+    public CharacterData GetCurrentSelectedCharacter()
+    {
+        return currentSelectedCharacter;
+    }
+    
+    private void FallbackUpdatePreview()
+    {
+        Debug.Log($"🔄 MAINMENU: FallbackUpdatePreview called");
+        
+        if (currentSelectedCharacter == null)
+        {
+            Debug.LogWarning($"🔄 MAINMENU: No current selected character for fallback");
+            return;
+        }
+        
+        // Try to find and directly update the local preview point
+        var previewPoints = FindObjectsByType<LobbyCharacterPreviewPoint>(FindObjectsSortMode.None);
+        Debug.Log($"🔄 MAINMENU: Found {previewPoints.Length} preview points");
+        
+        foreach (var previewPoint in previewPoints)
+        {
+            // Look for the local player preview point
+            if (previewPoint.name.Contains("Local") || previewPoint.transform.GetSiblingIndex() == 0)
+            {
+                Debug.Log($"🔄 MAINMENU: Found potential local preview point: {previewPoint.name}");
+                
+                // First try to get or create the character loader through the preview point
+                Debug.Log($"🔄 MAINMENU: Getting or creating character loader through LobbyCharacterPreviewPoint");
+                var previewLoader = previewPoint.GetOrCreateCharacterLoader();
+                if (previewLoader != null)
+                {
+                    Debug.Log($"🔄 MAINMENU: Found existing UltraSimpleMeshSwapper, loading character");
+                    previewLoader.LoadCharacterByID(currentSelectedCharacter.characterID);
+                    previewLoader.SetVisible(true);
+                    Debug.Log($"🔄 MAINMENU: Fallback character loading completed");
+                    return;
+                }
+                else
+                {
+                    Debug.LogWarning($"🔄 MAINMENU: No UltraSimpleMeshSwapper found on {previewPoint.name}, checking for character preview objects...");
+                    
+                    // Try to find a character preview object that we can add the component to
+                    var characterPreviewObjects = previewPoint.GetComponentsInChildren<Transform>();
+                    foreach (var obj in characterPreviewObjects)
+                    {
+                        // Look for objects that might be character models (have SkinnedMeshRenderer)
+                        var skinnedRenderer = obj.GetComponent<SkinnedMeshRenderer>();
+                        if (skinnedRenderer != null)
+                        {
+                            Debug.Log($"🔄 MAINMENU: Found character object {obj.name} with SkinnedMeshRenderer, adding UltraSimpleMeshSwapper");
+                            previewLoader = obj.gameObject.AddComponent<UltraSimpleMeshSwapper>();
+                            previewLoader.SetPreviewMode(true);
+                            
+                            // Wait a frame for initialization then load character
+                            StartCoroutine(DelayedFallbackLoad(previewLoader, currentSelectedCharacter.characterID));
+                            return;
+                        }
+                    }
+                    
+                    Debug.LogWarning($"🔄 MAINMENU: No suitable character preview object found on {previewPoint.name}");
+                }
+            }
+        }
+        
+        Debug.LogWarning($"🔄 MAINMENU: No suitable preview point found for fallback update");
+    }
+    
+    /// <summary>
+    /// Delayed loading for fallback preview when component is created dynamically
+    /// </summary>
+    private System.Collections.IEnumerator DelayedFallbackLoad(UltraSimpleMeshSwapper loader, int characterID)
+    {
+        // Wait a frame for the component to initialize
+        yield return null;
+        
+        if (loader != null)
+        {
+            Debug.Log($"🔄 MAINMENU: Loading character {characterID} after delayed initialization");
+            bool success = loader.LoadCharacterByID(characterID);
+            if (success)
+            {
+                loader.SetVisible(true);
+                Debug.Log($"🔄 MAINMENU: Delayed fallback character loading completed successfully");
+            }
+            else
+            {
+                Debug.LogWarning($"🔄 MAINMENU: Delayed fallback character loading failed");
+            }
+        }
+        else
+        {
+            Debug.LogError($"🔄 MAINMENU: Loader became null during delayed loading");
         }
     }
     
@@ -619,5 +962,12 @@ public class MainMenuUI : MonoBehaviour
         
         if (leaveLobbyButton != null)
             leaveLobbyButton.onClick.RemoveAllListeners();
+        
+        // Clean up character selection button listeners
+        if (previousCharacterButton != null)
+            previousCharacterButton.onClick.RemoveAllListeners();
+        
+        if (nextCharacterButton != null)
+            nextCharacterButton.onClick.RemoveAllListeners();
     }
 }
