@@ -186,7 +186,7 @@ Trello üzerinden yürütülen Sprint Board güncellenmiş ve görevler ilerleme
  **Sprint Retrospective:** 
  - Oyunu zamınında tamamlıyamıyacağımıza karar verdik
  - Mission failed we'll get'em next time
- - 
+
 ## SPRINT BOARD UPDATE: 
 Trello üzerinden yürütülen Sprint Board güncellenmiş ve pes edilmiştir.
 ![Uploading image.png…]()
@@ -195,6 +195,7 @@ Trello üzerinden yürütülen Sprint Board güncellenmiş ve pes edilmiştir.
 Oyun yetişmedi, maine gönderdiğimiz haliyle hatalar ve build alırken sıkıntı olabiliyor
 Oyunun videosu --> https://youtu.be/Uz3KmM97bpk
 Oyunun oynanamayan bir demosu (webgl) --> https://play.unity.com/en/games/4971a495-63ee-4660-895b-82e15f1154f5/grup-50-crown-of-shadows
+
 
 
 
