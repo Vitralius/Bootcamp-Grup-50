@@ -179,9 +179,22 @@ Trello üzerinden yürütülen Sprint Board güncellenmiş ve görevler ilerleme
 - <img width="688" height="802" alt="image" src="https://github.com/user-attachments/assets/c784989f-f9f9-4d30-8751-ae74fad801fc" />
  
 
+# **SPRINT 1**
+- Proje boyunca tamamlanması hedeflenen toplam 30 puanlık backlog, 3 sprint'e bölünerek yönetilecektir. Bu nedenle üçüncü sprint için 10 puan ile devam edilmesine karar verilmiştir.
+- **Sprint içinde tamamlanması tahmin edilen puan**: -5 Puan, geriye gittik
 
+ **Sprint Retrospective:** 
+ - Oyunu zamınında tamamlıyamıyacağımıza karar verdik
+ - Mission failed we'll get'em next time
+ - 
+## SPRINT BOARD UPDATE: 
+Trello üzerinden yürütülen Sprint Board güncellenmiş ve pes edilmiştir.
+![Uploading image.png…]()
 
-
+   
+Oyun yetişmedi, maine gönderdiğimiz haliyle hatalar ve build alırken sıkıntı olabiliyor
+Oyunun videosu --> https://youtu.be/Uz3KmM97bpk
+Oyunun oynanamayan bir demosu (webgl) --> https://play.unity.com/en/games/4971a495-63ee-4660-895b-82e15f1154f5/grup-50-crown-of-shadows
 
 
 
