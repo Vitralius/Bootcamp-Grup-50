@@ -189,12 +189,14 @@ Trello üzerinden yürütülen Sprint Board güncellenmiş ve görevler ilerleme
 
 ## SPRINT BOARD UPDATE: 
 Trello üzerinden yürütülen Sprint Board güncellenmiş ve pes edilmiştir.
-![Uploading image.png…]()
+<img width="2079" height="832" alt="image" src="https://github.com/user-attachments/assets/94c40ddc-bf47-48ba-a5a8-70243c9a959e" />
+
 
    
 Oyun yetişmedi, maine gönderdiğimiz haliyle hatalar ve build alırken sıkıntı olabiliyor
 Oyunun videosu --> https://youtu.be/Uz3KmM97bpk
 Oyunun oynanamayan bir demosu (webgl) --> https://play.unity.com/en/games/4971a495-63ee-4660-895b-82e15f1154f5/grup-50-crown-of-shadows
+
 
 
 
