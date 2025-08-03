@@ -6647,7 +6647,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   lobbySceneName: SampleScene
-  gameSceneName: PlaygroundMain
+  gameSceneName: CastleScene
 --- !u!1 &1975092624
 GameObject:
   m_ObjectHideFlags: 0
